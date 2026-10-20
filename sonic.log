@@ -1,0 +1,2 @@
+> > > _incObj/09 Sonic in Special Stage.asm(781): warning #60: distance of 0 not allowed for short jump (NOP created instead)
+> > >   bra.s   SonicSS_ChkGOAL    ; if not, branch
