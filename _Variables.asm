@@ -9,9 +9,7 @@ ramaddr function x,(-(x&$80000000)<<1)|x
 v_ram_start_def:
 v_ram_start:		equ	v_ram_start_def&$FFFFFF		; 24-bit addressing
 
-v_128x128_def:		ds.b	chunk_size_128*$100		; 128x128 tile mappings ($100 chunks)
-v_128x128:		equ	v_128x128_def&$FFFFFF		; 24-bit addressing
-v_128x128_end:
+			ds.b	$80*$100			; unused (previously 128x128 chunk mappings)
 
 v_lvllayout:		ds.b	layout_row*$10			; level layouts (FG/BG rows interlaced, 8 rows and $400 total)
 v_lvllayout_fg:		equ	v_lvllayout			; start address of foreground's first row
@@ -20,7 +18,7 @@ v_lvllayout_end:
 
 v_collision1:		ds.b	$300				; MJ: path A
 v_collision2:		ds.b	$300				; MJ: path B
-			ds.b	$1200				; unused
+    ds.b $A00
 
 v_bgscroll_buffer:	ds.b	$200				; background scroll buffer
 v_ngfx_buffer:		ds.b	$200				; Nemesis graphics decompression buffer
@@ -30,7 +28,6 @@ v_spritequeue:		ds.b	spritelayer_num*spritelayer_size ; sprite display queue, in
 
 Art_Buffer:		ds.b	$1000				; art decompression buffer used for PLCs
 Art_Buffer_End:							; end of decompression buffer
-			ds.b	$800				; unused
 
 VDP_Command_Buffer:	ds.w	7*$12				; stores 18 ($12) VDP commands to issue the next time ProcessDMAQueue is called
 VDP_Command_Buffer_Slot:ds.l	1				; stores the address of the next open slot for a queued VDP command
@@ -307,7 +304,7 @@ v_scroll_block_2_size:	ds.w	1				; unused
 v_scroll_block_3_size:	ds.w	1				; unused
 v_scroll_block_4_size:	ds.w	1				; unused
 v_rom_blocks:		ds.l	1				; pointer for 16x16 blocks in ROM
-			ds.b	4				; unused
+v_rom_chunks:		ds.l	1				; pointer for 128x128 chunks in ROM
 v_levelvariables_end:
 
 v_spritetablebuffer:	ds.b	spritetable_entrysize*sprites_max ; sprite table (8*80=$280 bytes) (last $80 bytes are overwritten by v_palette_water_fading)
@@ -513,9 +510,8 @@ v_ss_animations:	ds.b	8*$20				; animation update queue (8 bytes per entry, $20 
 v_ss_animations_end:						; end of animation update queue
 	org	$FFFF8000					; (need 32-bit addressing starting at FFFF8000)
 v_ss_rotationmatrix:	ds.b	2*2*ss_matrixsize*ss_matrixsize	; rotated X/Y sprite coordinates (words) per visible cell (2*2*$10*$10 = $400 bytes)
-			ds.b	$2600				; unused in SS
+			ds.b	$600				; unused in SS
 v_ss_scroll_bubbles:	ds.b	$28				; buffer to store scroll positions for SS background bubbles
-			ds.b	$D8				; unused in SS
 v_ss_scroll_clouds:	ds.b	$1C				; buffer to store scroll positions for SS background clouds
 	dephase
 

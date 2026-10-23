@@ -69,7 +69,7 @@ tile_size:	equ 8*8/2	; size of a single 8x8 tile
 chunk_size_128:	equ $80		; size of a single 128x128 chunk
 plane_size_64x32: equ 64*32*2	; size of plane in 512x256 mode
 
-layout_row_interlaced:	equ $80	; size of a single level layout row (FG/BG alternating)
+layout_row_interlaced:	equ $80*2	; size of a single level layout row (FG/BG alternating)
 layout_row:		equ layout_row_interlaced*2	; size of a single level layout row (skipping over other plane)
 
 ; Levels (zones)

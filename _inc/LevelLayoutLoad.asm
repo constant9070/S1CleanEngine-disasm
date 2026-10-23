@@ -12,9 +12,7 @@ LevelDataLoad:
 		move.l	(a2)+,(v_rom_blocks).w			; set ROM Blk16 pointer
 
 	; --- 128x128 Chunk Mappings ---
-		movea.l	(a2)+,a0			; get 128x128 chunk data pointer from level header
-		lea	(v_128x128).l,a1		; set target RAM buffer for 128x128 mappings
-		bsr.w	KosDec				; decompress Kosinski-compressed chunk data to buffer
+		move.l	(a2)+,(v_rom_chunks).w			; set ROM Blk16 pointer
 
 	; --- Level Layout (FG/BG) ---
 		bsr.w	LevelLayoutLoad			; load FG and BG layout

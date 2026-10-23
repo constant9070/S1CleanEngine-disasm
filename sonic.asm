@@ -1939,9 +1939,7 @@ Tit_LoadText:
 
 		move.l	#Blk16_Title,(v_rom_blocks).w		; set Blk16 pointer to use GHZ blocks
 
-		lea	(Blk128_Title).l,a0		; load GHZ 128x128 mappings
-		lea	(v_128x128).l,a1		; set target buffer for chunks mappings
-		bsr.w	KosDec				; decompress Kosinski-compressed chunks mappings to buffer
+		move.l	#Blk128_Title,(v_rom_chunks).w		; set Blk128 pointer to use GHZ blocks
 
 		bsr.w	LevelLayoutLoad			; load level layout for the background
 		bsr.w	PaletteFadeOut			; fade-out "SONIC TEAM PRESENTS" screen
@@ -3559,7 +3557,7 @@ End_LoadData:
 		bsr.w	KosDec
 		enable_ints				; enable interrupts
 		lea	(Kos_EndFlowers).l,a0		; load extra flower patterns
-		lea	(v_128x128+$20*chunk_size_128).l,a1 ; RAM address to buffer the patterns (overwriting unused chunk RAM)
+		lea	(v_ram_start+$20*chunk_size_128).l,a1 ; RAM address to buffer the patterns (overwriting unused chunk RAM)
 		bsr.w	KosDec				; decompress Kosinski-compressed chunks mappings to buffer
 		moveq	#palid_Sonic,d0			; load Sonic's palette...
 		bsr.w	PalLoad_Fade			; ...to fade-in buffer
@@ -4462,14 +4460,14 @@ Blk16_Title:	binclude	"map16/Title.unc"
 		even
 KosM_Title:	binclude	"artkosm/8x8 - Title.kosm"
 		even
-Blk128_Title:	binclude	"map128/Title.kos"
+Blk128_Title:	binclude	"map128/Title.unc"
 		even
 
 Blk16_GHZ:	binclude	"map16/GHZ.unc"
 		even
 KosM_GHZ:	binclude	"artkosm/8x8 - GHZ.kosm"
 		even
-Blk128_GHZ:	binclude	"map128/GHZ.kos"
+Blk128_GHZ:	binclude	"map128/GHZ.unc"
 		even
 
 ; ---------------------------------------------------------------------------

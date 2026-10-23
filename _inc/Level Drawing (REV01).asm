@@ -423,7 +423,8 @@ Draw_MZ:
 		add.w	d4,d0					; d0 = v_bgscreenposy - 512 + (-16 or +224)
 		andi.w	#$7F0,d0				; limit to multiples of $10
 		lsr.w	#4,d0					; divide by 16
-		move.b	(a0,d0.w),d0				; retrieve offset value from input BG_ScrollBlockMap (0/2/4/6)
+  	move.w	(a4,d0.w),d3	; load word chunk ID from layout
+   lsl.l	#7,d3		; was lsl.w #7
 		movea.w	DrawBG_XPosCopy_Ptrs(pc,d0.w),a3	; use that value to retrieve relevant BG screen position data
 		beq.s	.bgXPos0				; branch if 0
 		moveq	#-16,d5					; x coordinate - left of screen
@@ -752,14 +753,14 @@ GetBlockData_2:
 		andi.w	#$7F,d0					; keep in range of layout's X size ($80 per row, $40 per plane)
 
 		; Get chunk from level layout
-		lsl.w	#1,d3					; MJ: multiply by 2 (So it skips the BG)
+		lsl.w	#2,d3					; MJ: multiply by 4 (So it skips the BG)
+		add.w	d0,d0					; double x
 		add.w	d3,d0					; fuse Y and X together (d0 = layout position of chunk)
-		moveq	#$FFFFFFFF,d3				; prepare RAM address ($FFFF???? for layout)
-		move.b	(a4,d0.w),d3				; load correct chunk ID from layout
+		moveq	#0,d3				; prepare RAM address ($FFFF???? for layout)
+		move.w	(a4,d0.w),d3				; load correct chunk ID from layout
 
 		; Turn chunk ID into index into chunk table
-		andi.w	#$FF,d3					; MJ: keep within FF
-		lsl.w	#7,d3					; MJ: multiply by 80
+		lsl.l	#7,d3					; MJ: multiply by 80
 
 
 		; Turn Y coordinate into index into chunk
@@ -771,6 +772,9 @@ GetBlockData_2:
 		; Get block metadata from chunk
 		add.w	d4,d3					; add block's Y position to the chunk address in d3
 		add.w	d5,d3					; add block's X position to the chunk address in d3
+
+		add.l	(v_rom_chunks).w,d3			; add ROM Blk128 pointer to offset
+
 		movea.l	d3,a0					; copy chunk/block address to a0
 		move.w	(a0),d3					; load block ID from chunk
 
