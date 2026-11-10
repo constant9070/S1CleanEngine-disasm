@@ -45,6 +45,8 @@ Sonic_Main:	; Routine 0
 		move.w	#son_maxspeed,(v_sonspeedmax).w		; set Sonic's top speed
 		move.w	#son_acceleration,(v_sonspeedacc).w	; set Sonic's acceleration
 		move.w	#son_deceleration,(v_sonspeeddec).w	; set Sonic's deceleration
+		clr.b	(v_supersonic).w		; <-- add: ensure Super state is off
+		clr.b	(v_supersonic_palstate).w	; <-- add: clear palette state
 ; ---------------------------------------------------------------------------
 
 ; Obj01_Control:
@@ -80,7 +82,12 @@ Sonic_Control:	; Routine 2
 
 ; loc_12C7E:
 .ignoremodes:
+		tst.w	(v_limittop2).w				; is vertical wrapping enabled?
+		bpl.s	.noWrap					; if not, branch
+		andi.w	#$7FF,obY(a0)				; wrap Sonic's Y position
+	.noWrap:
 		bsr.s	Sonic_Display				; display Sonic sprite and handle power-up expiration
+		bsr.w	Sonic_Super
 		bsr.w	Sonic_RecordPosition			; record Sonic's previous position for the invincibility stars trail
 		bsr.w	Sonic_Water				; handle Sonic while in water (LZ only)
 		move.b	(v_anglebuffer).w,angleright(a0)	; update front collision hot spot
@@ -159,6 +166,9 @@ Sonic_Display:
 		beq.s	.return					; if there is none, branch
 		subq.w	#1,shoetime(a0)				; subtract 1 from time
 		bne.s	.return					; if time remains, branch
+		clr.b	(v_shoes).w		; clear shoes flag regardless
+		tst.b	(v_supersonic).w	; is Sonic Super?
+		bne.s	.return			; if yes, don't reset speeds
 		move.w	#son_maxspeed,(v_sonspeedmax).w		; restore Sonic's max speed
 		move.w	#son_acceleration,(v_sonspeedacc).w	; restore Sonic's acceleration
 		move.w	#son_deceleration,(v_sonspeeddec).w	; restore Sonic's deceleration
@@ -171,6 +181,10 @@ Sonic_Display:
 		move.w	#son_deceleration/2,(v_sonspeeddec).w	; change Sonic's deceleration (half of regular)
 	.notunderwater:
 	endif
+		tst.w	(v_limittop2).w				; is vertical wrapping enabled?
+		bpl.s	.noWrap					; if not, branch
+		andi.w	#$7FF,obY(a0)				; wrap Sonic's Y position
+	.noWrap:
 		move.b	#0,(v_shoes).w				; cancel speed shoes
 		move.w	#bgm_Slowdown,d0			; resume music...
 		jmp	(QueueSound1).l				; ...at normal speed
@@ -208,12 +222,13 @@ Sonic_RecordPosition:
 ; ---------------------------------------------------------------------------
 
 Sonic_Water:
-		cmpi.b	#id_LZ,(v_zone).w			; is level LZ?
-		beq.s	.islabyrinth				; if yes, branch
+		tst.b	(f_water).w				; does this level have water? (set from WaterData)
+		bne.s	.islabyrinth				; if yes, branch
 
 ; locret_12D80:
 .return:
 		rts						; return
+
 ; ===========================================================================
 
 ; Obj01_InWater:
@@ -222,7 +237,7 @@ Sonic_Water:
 		cmp.w	obY(a0),d0				; is Sonic above the water?
 		bge.s	.abovewater				; if yes, branch
 		bset	#6,obStatus(a0)				; set underwater flag
-		bne.s	.return					; was Sonic already underwater? if yes, nothing to do
+		bne.w	.return					; was Sonic already underwater? if yes, nothing to do
 
 		bsr.w	ResumeMusic				; replenish air (music won't resume here, we've only just entered water...)
 		move.b	#id_DrownCount,(v_sonicbubbles).w	; load drown countdown object
@@ -230,6 +245,12 @@ Sonic_Water:
 		move.w	#son_maxspeed/2,(v_sonspeedmax).w	; change Sonic's top speed (half of regular)
 		move.w	#son_acceleration/2,(v_sonspeedacc).w	; change Sonic's acceleration (half or regular)
 		move.w	#son_deceleration/2,(v_sonspeeddec).w	; change Sonic's deceleration (half of regular)
+		tst.b	(v_supersonic).w
+		beq.s	.enter_done
+		move.w	#$500,(v_sonspeedmax).w
+		move.w	#$18,(v_sonspeedacc).w
+		move.w	#$80,(v_sonspeeddec).w
+.enter_done:
 	if FixBugs
 		; Fix speed shoes for underwater state.
 		tst.b	(v_shoes).w				; does Sonic have speed shoes?
@@ -251,12 +272,18 @@ Sonic_Water:
 ; Obj01_OutWater:
 .abovewater:
 		bclr	#6,obStatus(a0)				; clear underwater flag
-		beq.s	.return					; was Sonic already above water? if yes, nothing to do
+		beq.w	.return					; was Sonic already above water? if yes, nothing to do
 
 		bsr.w	ResumeMusic				; replenish air and resume music if necessary
 		move.w	#son_maxspeed,(v_sonspeedmax).w		; restore Sonic's speed
 		move.w	#son_acceleration,(v_sonspeedacc).w	; restore Sonic's acceleration
 		move.w	#son_deceleration,(v_sonspeeddec).w	; restore Sonic's deceleration
+		tst.b	(v_supersonic).w
+		beq.s	.exit_done
+		move.w	#$A00,(v_sonspeedmax).w
+		move.w	#$30,(v_sonspeedacc).w
+		move.w	#$100,(v_sonspeeddec).w
+.exit_done:
 	if FixBugs
 		; Fix speed shoes for underwater state.
 		tst.b	(v_shoes).w				; does Sonic have speed shoes?
@@ -278,6 +305,7 @@ Sonic_Water:
 		move.w	#sfx_Splash,d0				; set splash sound
 		jmp	(QueueSound2).l				; play it
 ; End of function Sonic_Water
+
 
 
 ; ===========================================================================
@@ -308,11 +336,15 @@ Sonic_MdNormal:	; While Sonic is on the ground and not rolling
 Sonic_MdJump:	; While Sonic is in the air but not rolling
 	if AirDash
 	  if Turbo
+        tst.b   (v_shieldtype).w
+        bne.s   .noairdash          ; If v_shieldtype is NOT 0 (any shield is active), skip AirDash
       tst.w   (v_turbotimer).w
       beq.s   .noairdash
 
 		  bsr.w	Sonic_HomingAttack
   	else
+        tst.b   (v_shieldtype).w
+        bne.s   .noairdash          ; If v_shieldtype is NOT 0 (any shield is active), skip AirDash
 		  bsr.w	Sonic_HomingAttack
   	endif
 	endif
@@ -795,8 +827,7 @@ Sonic_RollSpeed:
 		asl.w	#1,d6					; ...doubled while rolling
 		move.w	(v_sonspeedacc).w,d5			; get Sonic's current acceleration...
 		asr.w	#1,d5					; ...halved while rolling
-		move.w	(v_sonspeeddec).w,d4			; get Sonic's current deceleration...
-		asr.w	#2,d4					; ...divided by 4 while rolling
+		moveq	#6,d5			; fixed natural roll deceleration
 
 		tst.b	(f_slidemode).w				; is Sonic on a water slide? (LZ only)
 		bne.w	Sonic_AngledRollSpeed			; if yes, branch (no rolling)
@@ -1027,12 +1058,12 @@ Sonic_RollJumpLock:
 ; loc_132A4:
 Sonic_AirDrag:
 		cmpi.w	#-$400,obVelY(a0)			; is Sonic moving faster than -$400 upwards?
-		blo.s	.return					; if yes, branch (skip air drag)
+		blo.w	.return					; if yes, branch (skip air drag)
 
 		move.w	obVelX(a0),d0				; get current X-velocity
 		move.w	d0,d1					; copy it
 		asr.w	#5,d1					; divide that copy by $20
-		beq.s	.return					; if result is zero, branch
+		beq.w	.return					; if result is zero, branch
 		bmi.s	.jumpingleftward			; if speed is negative, branch
 		sub.w	d1,d0					; slightly reduce speed (air drag)
 		bcc.s	.stillright				; if result is still rightward, branch
@@ -1256,10 +1287,14 @@ Sonic_Jump:
 		cmpi.w	#6,d1					; are there less than 6px between Sonic and the ceiling?
 		blt.w	.return					; if yes, prevent jumping
 
-		move.w	#son_jumpspeed,d2			; set initial jump force
-		btst	#6,obStatus(a0)				; is Sonic underwater?
-		beq.s	.notunderwater				; if not, continue
-		move.w	#son_jumpspeed-$300,d2			; set underwater jump force
+		move.w	#$680,d2	; set initial jump force
+		tst.b	(v_supersonic).w	; is Sonic Super?
+		beq.s	.notsuper		; if not, skip
+		move.w	#$800,d2		; Super Sonic jumps higher
+.notsuper:
+		btst	#6,obStatus(a0)	; is Sonic underwater?
+		beq.s	.notunderwater
+		move.w	#$380,d2	; set underwater jump force
 ; loc_1341C:
 .notunderwater:
 		moveq	#0,d0					; clear d0
@@ -1294,9 +1329,15 @@ Sonic_Jump:
 		bset	#2,obStatus(a0)				; set rolling flag
 		addq.w	#sonic_height-sonic_roll_height,obY(a0)	; adjust Y-position to align Sonic to the floor
 
-; locret_1348E:
 .return:
-		rts						; return
+;		tst.b	(f_lockctrl).w		; are controls locked?
+;		bne.s	.no_super		; if yes, don't allow transformation
+;		move.b	(v_jpadpress2).w,d0
+;		andi.b	#btnABC,d0		; is A, B or C pressed (fresh press only)?
+;		beq.s	.no_super		; if not, branch
+;		bra.s	Sonic_CheckGoSuper
+.no_super:
+		rts
 ; ===========================================================================
 
 ; loc_13490:
@@ -1322,7 +1363,7 @@ Sonic_JumpHeight:
 ; loc_134AE:
 .notunderwater:
 		cmp.w	obVelY(a0),d1				; get current y speed
-		ble.s	.return					; is Sonic moving up slower than the cap speed? if yes, branch
+		ble.w	Sonic_ShieldMoves					; is Sonic moving up slower than the cap speed? if yes, branch
 		move.b	(v_jpadhold2).w,d0			; get currently held buttons
 		andi.b	#btnABC,d0				; is A, B or C still held after jumping?
 		bne.s	.return					; if yes, branch
@@ -1354,6 +1395,176 @@ Sonic_JumpHeight:
 		rts						; return
 ; End of function Sonic_JumpHeight
 
+; ---------------------------------------------------------------------------
+; Subroutine: Check whether Sonic should transform into Super Sonic.
+; ---------------------------------------------------------------------------
+
+Sonic_CheckGoSuper:
+		tst.b	(v_supersonic).w	; already Super?
+		bne.w	Sonic_Super.revert	; if yes, revert on button press
+;		cmpi.b	#6,(v_emeralds).w	; all 6 Chaos Emeralds collected?
+;		bne.s	.return			; if not, branch
+		cmpi.w	#50,(v_rings).w		; at least 50 rings?
+		blo.w	.return			; if not, branch
+		tst.b	(f_timecount).w		; is the act timer still running?
+		beq.w	.return			; if not, block transformation
+
+		andi.b	#~(%00010100),obStatus(a0)	; clear rolling (bit 2) and roll-jumping (bit 4)
+		move.b	#$13,obHeight(a0)		; restore standing height-radius
+		move.b	#9,obWidth(a0)			; restore standing width-radius
+
+		; S2 sets: move.b #1,(Super_Sonic_palette).w / move.b #$F,(Palette_timer).w / move.b #1,(Super_Sonic_flag).w
+		move.b	#1,(v_supersonic_palstate).w	; begin palette fade-in		<-- add
+		move.b	#$F,(v_supersonic_paltimer).w	; set timer value		<-- add
+		clr.b	(v_supersonic_palframe).w	; clear palette frames		<-- add
+
+		move.b	#1,(v_supersonic).w	; set Super Sonic flag
+
+		move.b	#1,(f_playerctrl).w		; lock movement during transformation	<-- add
+
+		; DeltaW: correct transform animation and lock flag will be set once we get artwork and palette cycling sorted
+		move.b	#id_Leap2,obAnim(a0)
+		move.w	#$A00,(v_sonspeedmax).w
+		move.w	#$30,(v_sonspeedacc).w
+		move.w	#$100,(v_sonspeeddec).w
+		btst	#6,obStatus(a0)		; is Sonic underwater?
+		beq.s	.notunderwater
+		move.w	#$500,(v_sonspeedmax).w
+		move.w	#$18,(v_sonspeedacc).w
+		move.w	#$80,(v_sonspeeddec).w
+
+	.notunderwater:			
+		move.w	#0,invtime(a0)		; cancel any active invincibility timer
+		move.b	#1,(v_invinc).w		; make Sonic invincible
+		move.b	#id_SuperSonicStar,(v_starsobj1).w	; load Super Sonic stars object
+		clr.b	(v_starsobj1+obRoutine).w	; clear routine counter
+		move.w	#sfx_Transform,d0	; play transformation SFX
+		jsr	(QueueSound2).l
+		move.w	#bgm_SuperSonic,d0	; play Super Sonic music
+		jmp	(QueueSound1).l
+
+.return:
+		rts
+; End of subroutine Sonic_CheckGoSuper
+
+; ---------------------------------------------------------------------------
+; Subroutine: Per-frame Super Sonic handler.
+; Drains one ring per second and reverts when rings hit zero.
+; ---------------------------------------------------------------------------
+
+Sonic_Super:
+		tst.b	(v_supersonic).w	; is Sonic Super?
+		beq.w	.exit			; if not, do nothing
+
+		tst.b	(f_timecount).w		; is the act timer still running?
+		beq.s	.revert			; if not (act ended), force revert
+
+		subq.w	#1,(v_ssframe).w	; count down the ring-drain timer
+		bhi.w	.exit			; not expired yet (DeltaW: changed to bhi so rings drain every 60 frames instead of 61)
+		move.w	#60,(v_ssframe).w	; reset to 60 frames (1 second)
+
+		tst.w	(v_rings).w		; any rings remaining?
+		beq.s	.revert			; if none, revert
+
+		ori.b	#1,(f_ringcount).w
+		cmpi.w	#1,(v_rings).w
+		beq.s	.cont
+		cmpi.w	#10,(v_rings).w
+		beq.s	.cont
+		cmpi.w	#100,(v_rings).w
+		bne.s	.cont2
+
+.cont:
+		ori.b	#$80,(f_ringcount).w
+
+.cont2:
+		subq.w	#1,(v_rings).w
+		bne.s	.exit
+
+.revert:
+		move.b	#0,(v_supersonic).w
+		move.b	#2,(v_supersonic_palstate).w	; begin palette fade-out	<-- add
+		move.b	#5*2*4,(v_supersonic_palframe).w ; S2: move.w #$28,(Palette_frame).w	<-- add
+		move.b	#id_Run,obPrevAni(a0)
+		move.w	#1,invtime(a0)
+		move.w	#$600,(v_sonspeedmax).w
+		move.w	#$C,(v_sonspeedacc).w
+		move.w	#$80,(v_sonspeeddec).w
+
+		btst	#6,obStatus(a0)		; is Sonic underwater?
+		beq.s	.exit
+		move.w	#$300,(v_sonspeedmax).w
+		move.w	#6,(v_sonspeedacc).w
+		move.w	#$40,(v_sonspeeddec).w
+
+.exit:
+		rts
+; End of subroutine Sonic_Super
+
+; ===========================================================================
+; ---------------------------------------------------------------------------
+; Elemental Shield abilities (ported from Sonic 3 & Knuckles)
+; Reached from Sonic_JumpHeight while Sonic is in a jump and rising slower
+; than the jump-cap speed (or falling).
+; ---------------------------------------------------------------------------
+
+Sonic_ShieldMoves:
+		tst.b	double_jump_flag(a0)			; is Sonic currently performing a double jump?
+		bne.s	.return					; if yes, branch
+		move.b	(v_jpadpress2).w,d0			; get newly pressed buttons
+		andi.b	#btnABC,d0				; are buttons A, B, or C being pressed?
+		beq.s	.return					; if not, branch
+		bclr	#4,obStatus(a0)				; clear roll-jump flag
+		tst.b	(v_invinc).w				; does Sonic have invincibility?
+		bne.s	.return					; if yes, no shield abilities
+
+		btst	#Status_FireShield,(v_shieldtype).w	; does Sonic have a Fire Shield?
+		bne.s	.fire					; if yes, branch
+		btst	#Status_LightningShield,(v_shieldtype).w ; does Sonic have a Lightning Shield?
+		bne.s	.lightning				; if yes, branch
+		btst	#Status_BubbleShield,(v_shieldtype).w	; does Sonic have a Bubble Shield?
+		bne.s	.bubble					; if yes, branch
+
+   nop ; yet, the build warnings will never end :p
+
+.return:
+		rts						; return
+; ---------------------------------------------------------------------------
+
+.fire:
+;		move.b	#1,(v_shieldobj+obAnim).w			; (shield object animation: needs the ported shield object)
+		move.b	#1,double_jump_flag(a0)			; set double jump flag
+		move.w	#$800,d0				; dash speed
+		btst	#0,obStatus(a0)				; is Sonic facing left?
+		beq.s	.dash					; if not, branch
+		neg.w	d0					; reverse speed value, moving Sonic left
+
+.dash:
+		move.w	d0,obVelX(a0)				; apply velocity...
+		move.w	d0,obInertia(a0)			; ...both ground and air
+		move.w	#0,obVelY(a0)				; kill y-velocity
+		move.w	#sfx_FireAttack,d0
+		jmp	(QueueSound2).l
+; ---------------------------------------------------------------------------
+
+.lightning:
+		move.b	#1,(v_shieldobj+obAnim).w			; (shield object animation: needs the ported shield object)
+		move.b	#1,double_jump_flag(a0)			; set double jump flag
+		move.w	#-$580,obVelY(a0)			; bounce Sonic up, creating the double jump effect
+		clr.b	jumping(a0)				; no variable jump height for this bounce
+		move.w	#sfx_ElectricAttack,d0
+		jmp	(QueueSound2).l
+; ---------------------------------------------------------------------------
+
+.bubble:
+;		move.b	#1,(v_shieldobj+obAnim).w			; (shield object animation: needs the ported shield object)
+		move.b	#1,double_jump_flag(a0)			; set double jump flag
+		move.w	#0,obVelX(a0)				; halt horizontal speed...
+		move.w	#0,obInertia(a0)			; ...both ground and air
+		move.w	#$800,obVelY(a0)			; force Sonic down
+		move.w	#sfx_BubbleAttack,d0
+		jmp	(QueueSound2).l
+; End of function Sonic_ShieldMoves
 
 ; ===========================================================================
 ; ---------------------------------------------------------------------------
@@ -1608,8 +1819,10 @@ Sonic_FloorDown:
 		clr.w	obSubpixelY(a0)				; reset subpixel portion
 	endif
 		move.b	d3,obAngle(a0)				; update Sonic's angle for the landed-on floor
-		bsr.w	Sonic_ResetOnFloor			; reset various flags and states back to standing state
 		move.b	#id_Walk,obAnim(a0)			; set to "walking" animation
+		; Sonic_ResetOnFloor is called at the end of each case below, AFTER the speeds
+		; have been converted. The Bubble Shield bounce is applied inside it, so calling
+		; it earlier lets the landing code wipe the bounce out again.
 
 	if FixBugs
 		; Fix angle inconsistencies on sloped surfaces
@@ -1644,6 +1857,7 @@ Sonic_FloorDown:
 .flatsurface:
 		move.w	#0,obVelY(a0)				; completely clear Sonic's vertical speed when landing on a flat surface
 		move.w	obVelX(a0),obInertia(a0)		; convert in-air horizontal speed to ground speed when landing
+		bsr.w	Sonic_ResetOnFloor			; reset flags and states (and do the Bubble Shield bounce)
 		rts						; return
 ; ===========================================================================
 
@@ -1657,6 +1871,7 @@ Sonic_FloorDown:
 ; loc_13670:
 .noslopecap:
 		move.w	obVelY(a0),obInertia(a0)		; convert in-air vertical speed to ground speed when landing
+		bsr.w	Sonic_ResetOnFloor			; reset flags and states (and do the Bubble Shield bounce)
 		tst.b	d3					; is slope (when viewed left-to-right in game) ascending?
 		bpl.s	.return					; if not, branch
 		neg.w	obInertia(a0)				; negate converted ground speed for ascending slopes
@@ -1738,10 +1953,10 @@ Sonic_FloorLeft:
 		clr.w	obSubpixelY(a0)				; reset subpixel portion
 	endif
 		move.b	d3,obAngle(a0)				; update Sonic's angle for the landed-on floor
-		bsr.w	Sonic_ResetOnFloor			; reset various flags and states back to standing state
 		move.b	#id_Walk,obAnim(a0)			; set to "walking" animation
 		move.w	#0,obVelY(a0)				; completely clear Sonic's vertical speed when landing on a flat surface
 		move.w	obVelX(a0),obInertia(a0)		; convert in-air horizontal speed to ground speed when landing
+		bsr.w	Sonic_ResetOnFloor			; reset various flags and states back to standing state
 
 ; locret_136E0:
 .return:
@@ -1872,10 +2087,10 @@ Sonic_FloorRight:
 		clr.w	obSubpixelY(a0)				; reset subpixel portion
 	endif
 		move.b	d3,obAngle(a0)				; update Sonic's angle for the landed-on floor
-		bsr.w	Sonic_ResetOnFloor			; reset various flags and states back to standing state
 		move.b	#id_Walk,obAnim(a0)			; set to "walking" animation
 		move.w	#0,obVelY(a0)				; completely clear Sonic's vertical speed when landing on a flat surface
 		move.w	obVelX(a0),obInertia(a0)		; convert in-air horizontal speed to ground speed when landing
+		bsr.w	Sonic_ResetOnFloor			; reset flags and states (after the speeds, so a Bubble Shield bounce survives)
 
 ; locret_1379E:
 .return:
@@ -1893,7 +2108,7 @@ Sonic_ResetOnFloor:
 		clr.b	homingattack(a0)			; clear homing attack flag
 		btst	#4,obStatus(a0)				; is Sonic roll-jumping?
 		beq.s	.notrolljump				; if not, skip
-   nop  ; I'm too lazy to put anything here
+   nop ; apparently there were build errors here too, so I added this
 
 ; loc_137AE:
 .notrolljump:
@@ -1919,9 +2134,56 @@ Sonic_ResetOnFloor:
 .notball:
 		move.b	#0,jumping(a0)				; clear jump flag
 		move.w	#0,(v_itembonus).w			; clear enemy score chain
+		tst.b	double_jump_flag(a0)			; did Sonic use a shield ability this jump?
+		beq.s	.return					; if not, branch
+		btst	#Status_BubbleShield,(v_shieldtype).w	; does Sonic have a Bubble Shield?
+		beq.s	.clearflag				; if not, branch
+		bsr.s	BubbleShield_Bounce			; bounce back up (this must be the LAST thing the landing code does)
+
+.clearflag:
+		move.b	#0,double_jump_flag(a0)			; clear double jump flag
+
+.return:
 		rts						; return
 ; End of function Sonic_ResetOnFloor
 
+; ===========================================================================
+; ---------------------------------------------------------------------------
+; Bubble Shield Bouncing
+; ---------------------------------------------------------------------------
+
+BubbleShield_Bounce:
+		movem.l	d1-d2,-(sp)
+		move.w	#$780,d2				; bounce strength
+		btst	#6,obStatus(a0)				; is Sonic underwater?
+		beq.s	.notunderwater				; if not, branch
+		move.w	#$400,d2				; weaker bounce underwater
+
+.notunderwater:
+		moveq	#0,d0
+		move.b	obAngle(a0),d0				; get the angle of the surface Sonic landed on
+		subi.b	#$40,d0					; bounce away from the surface
+		jsr	(CalcSine).l
+		muls.w	d2,d1
+		asr.l	#8,d1
+		add.w	d1,obVelX(a0)				; add horizontal part
+		muls.w	d2,d0
+		asr.l	#8,d0
+		add.w	d0,obVelY(a0)				; add vertical part
+		movem.l	(sp)+,d1-d2
+		bset	#1,obStatus(a0)				; set in-air flag
+		bclr	#5,obStatus(a0)				; clear push flag
+		move.b	#1,jumping(a0)				; set jump flag
+		clr.b	sticktoconvex(a0)
+		move.b	#sonic_roll_height,obHeight(a0)		; set height to rolling size
+		move.b	#sonic_roll_width,obWidth(a0)		; set width to rolling size
+		move.b	#id_Roll,obAnim(a0)			; use rolling animation
+		bset	#2,obStatus(a0)				; set rolling flag
+		addq.w	#sonic_height-sonic_roll_height,obY(a0)	; Sonic was just made standing size by ResetOnFloor, so lower him again
+;		move.b	#2,(v_shieldobj+obAnim).w			; (shield object bounce animation: needs the ported shield object)
+		move.w	#sfx_BubbleAttack,d0
+		jmp	(QueueSound2).l
+; End of function BubbleShield_Bounce
 
 ; ===========================================================================
 ; ---------------------------------------------------------------------------
@@ -2047,7 +2309,7 @@ Sonic_HandleDeath:
 	if FixBugs
 		; Fix the death boundary bug
 		; https://info.sonicretro.org/SCHG_How-to:Fix_the_death_boundary_bug
-		move.w	(v_screenposy).w,d0			; get current Y screen position
+		move.w	objoff_38(a0),d0			; get Sonic's Y position at the time of death
 		addi.w	#$100,d0				; go $100 pixels lower
 		cmp.w	obY(a0),d0				; has Sonic's death animation gone below the screen?
 		bge.w	.return					; if not, branch
@@ -2205,7 +2467,8 @@ Sonic_Animate:
 		moveq	#0,d1					; clear d1
 		move.b	obAniFrame(a0),d1			; load current frame number
 		move.b	1(a1,d1.w),d0				; read sprite number from script
-		bmi.s	.end_FF					; if animation is complete, branch
+		cmpi.b	#afChange,d0		; MJ: is it a flag from FD to FF?
+		bhs.s	.end_FF			; MJ: if so, branch to flag routines
 
 ; SAnim_Next:
 .next:
@@ -2730,16 +2993,16 @@ Sonic_PanCamera:
 
 .MovingLeft:
 		addq.w	#2,d1			; Pan the camera to the right
-		cmpi.w	#(320/2)+64,d1		; Has it panned far enough?
+		cmpi.w	#((320+ExtraWidth)/2)+64,d1		; Has it panned far enough?
 		blo.s	.SetPanVal		; If not, branch
-		move.w	#(320/2)+64,d1		; Cap the camera's position
+		move.w	#((320+ExtraWidth)/2)+64,d1		; Cap the camera's position
 		bra.s	.SetPanVal
 
 .MovingRight:
 		subq.w	#2,d1			; Pan the camera to the left
-		cmpi.w	#(320/2)-64,d1		; Has it panned far enough
+		cmpi.w	#((320+ExtraWidth)/2)-64,d1		; Has it panned far enough
 		bhs.s	.SetPanVal		; If not, branch
-		move.w	#(320/2)-64,d1		; Cap the camera's position
+		move.w	#((320+ExtraWidth)/2)-64,d1		; Cap the camera's position
 		bra.s	.SetPanVal
 
 .ResetPan:

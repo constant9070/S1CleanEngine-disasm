@@ -131,7 +131,7 @@ Sign_SonicRun:	; Routine 6
 		move.w	(v_limitright2).w,d1			; get right level boundary
 		addi.w	#320-24,d1				; add screen width minus 24px of leeway (see Sonic_LevelBound)
 		cmp.w	d1,d0					; has Sonic crossed the right side including leeway?
-		blo.s	Sign_Return				; if not, don't load end cards yet
+		blo.w	Sign_Return				; if not, don't load end cards yet
 
 ; loc_EC86:
 Sign_LoadEndCards:
@@ -144,15 +144,21 @@ Sign_LoadEndCards:
 
 GotThroughAct:
 		tst.b	(v_endcard).w				; are end cards already loaded?
-		bne.s	Sign_Return				; if yes, don't load them again
+		bne.w	Sign_Return				; if yes, don't load them again
 
 		; Setup end card sequence
 		move.w	(v_limitright2).w,(v_limitleft2).w	; set left level boundary to be the same as the right one
 		clr.b	(v_invinc).w				; disable invincibility
+
+		clr.b	(v_supersonic).w			; <-- add: revert Super Sonic
+		clr.w	(v_ssframe).w				; <-- add: clear ring-drain timer
+		move.w	#son_maxspeed,(v_sonspeedmax).w		; <-- add: restore normal top speed
+		move.w	#son_acceleration,(v_sonspeedacc).w	; <-- add: restore normal acceleration
+		move.w	#son_deceleration,(v_sonspeeddec).w	; <-- add: restore normal deceleration
+
 		clr.b	(f_timecount).w				; stop time counter
 		move.b	#id_GotThroughCard,(v_endcard).w	; load end card object (and prevent this routine from running again)
-		moveq	#plcid_TitleCard,d0			; get title cards PLC entry
-		jsr	(NewPLC).l				; queue title cards patterns for PLC
+		jsr	(Got_LoadArt).l				; load end-of-level title card graphics
 		move.b	#1,(f_endactbonus).w			; update bonus HUD for pre-tally display
 
 	; Time Bonus

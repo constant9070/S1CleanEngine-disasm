@@ -125,6 +125,27 @@ LevSz_StartLoc:
 
 ; SetScreen: LevSz_SkipStartPos:
 LevSz_InitCameraPositions:
+   if WidescreenType
+	; --- Camera X-Position ---
+	.chkXLeft:
+		subi.w	#320/2,d1				; initial camera X-position is Sonic horizontally centered on the screen
+		bhs.s	.chkXRight				; is Sonic more than 160px from left edge? if yes, branch
+		moveq	#0,d1					; prevent X-camera from underflowing
+	.chkXRight:
+		; Keep the wide view inside the level (same rules as SH_GetLeftLimit
+		; and SH_GetRightLimit in ScrollHoriz, but without touching d0/d1).
+		cmpi.w	#(ExtraWidth+32)/2,d1				; is the camera already far enough from the left edge?
+		bhs.s	.leftOk					; if yes, branch
+		cmpi.w	#(ExtraWidth+32)/2,(v_limitleft2).w		; is the left boundary already past the margin?
+		bhs.s	.leftOk					; if yes, leave the camera alone
+		move.w	#(ExtraWidth+32)/2,d1				; push the camera in so the left margin stays inside the level
+	.leftOk:
+		move.w	(v_limitright2).w,d2			; get right level boundary
+		cmp.w	d2,d1					; is Sonic inside the right edge?
+		blo.s	.setX					; if yes, branch
+		move.w	d2,d1					; prevent X-camera from going past right edge
+	.setX:	move.w	d1,(v_screenposx).w			; set initial horizontal screen position
+   else
 	; --- Camera X-Position ---
 	.chkXLeft:
 		subi.w	#320/2,d1				; initial camera X-position is Sonic horizontally centered on the screen
@@ -136,6 +157,7 @@ LevSz_InitCameraPositions:
 		blo.s	.setX					; if yes, branch
 		move.w	d2,d1					; prevent X-camera from going past right edge
 	.setX:	move.w	d1,(v_screenposx).w			; set initial horizontal screen position
+   endif
 
 	; --- Camera Y-Position ---
 	.chkYTop:

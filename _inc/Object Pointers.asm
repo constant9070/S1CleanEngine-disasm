@@ -18,10 +18,10 @@ id_Obj02:		objptr	NullObject		; 02
 id_PathSwapper:		objptr	PathSwapper		; 03
 id_Obj04:		objptr	NullObject		; 04
 id_SpinDust:		objptr	SpinDust		; 05
-id_Obj06:		objptr	NullObject		; 06
+id_SuperSonicStar:	objptr	SuperSonicStar		; 06
 id_Obj07:		objptr	NullObject		; 07
 id_Splash:		objptr	NullObject			; 08
-id_SonicSpecial:	objptr	SonicSpecial		; 09
+id_SonicSpecial:	objptr	NullObject		; 09
 id_DrownCount:		objptr	NullObject		; 0A
 id_Pole:		objptr	NullObject			; 0B
 id_FlapDoor:		objptr	NullObject		; 0C
@@ -138,8 +138,8 @@ id_BossStarLight:	objptr	NullObject		; 7A
 id_BossSpikeball:	objptr	NullObject		; 7B
 id_RingFlash:		objptr	RingFlash		; 7C
 id_HiddenBonus:		objptr	HiddenBonus		; 7D
-id_SSResult:		objptr	SSResult		; 7E
-id_SSRChaos:		objptr	SSRChaos		; 7F
+id_SSResult:		objptr	NullObject		; 7E
+id_SSRChaos:		objptr	NullObject		; 7F
 id_ContScrItem:		objptr	ContScrItem		; 80
 id_ContSonic:		objptr	ContSonic		; 81
 id_ScrapEggman:		objptr	NullObject		; 82

@@ -23,21 +23,16 @@ card_finalX:	equ	objoff_32	; target X-position for card while moving out
 
 ; Card_CheckSBZ3:
 Card_LoadForZone:	; Routine 0
-		movea.l	a0,a1
-		moveq	#0,d0
-		move.b	(v_zone).w,d0
-		lsl.w	#2,d0			; zone * 4
-		add.b	(v_act).w,d0		; + act
-		add.w	d0,d0			; 2 bytes per entry
-		lea	Card_NameTable(pc),a2
-		moveq	#0,d2
-		move.b	1(a2,d0.w),d2		; d2 = name frame ID
-		move.b	(a2,d0.w),d0		; d0 = Card_ConData row
-	; Card_LoadConfig:
-	.notFZ:
-		lea	(Card_ConData).l,a3			; load card configuration data
-		lsl.w	#4,d0					; multiply by $10 (number of bytes per zone entry)
-		adda.w	d0,a3					; set pointer to configuration data for current zone
+		movea.l	a0,a1					; set this root object to become the level name card
+
+		moveq	#0,d0					; clear d0 (zone is a byte, we need words)
+		move.b	(v_zone).w,d0				; get current zone ID and use it as index for mappings and config data
+		lsl.b	#2,d0					; quadruple (4 acts per zone)
+		add.b	(v_act).w,d0				; add act number
+		move.b	d0,d2					; backup d2 = frame ID to use
+		lsl.b	#3,d0					; multiply by 8 (number of bytes per zone entry)
+		lea	(TTL_ConData).l,a3			; load extended card configuration data
+		movea.l	(a3,d0.w),a3				; set pointer to configuration data for current zone
 		lea	(Card_ItemData).l,a2			; load card item data
 		moveq	#4-1,d1					; set to affect all four title card objects
 
@@ -49,16 +44,8 @@ Card_Loop:
 		move.w	(a2)+,obScreenY(a1)			; load fixed y-position
 		move.b	(a2)+,obRoutine(a1)			; set initial routine number
 		move.b	(a2)+,d0				; get frame ID
-		bne.s	.frameIdSet				; if frame ID is non-zero, branch (i.e. not the level name)
+		bne.s	.setupCardObject			; if frame ID is non-zero, branch (i.e. not the level name)
 		move.b	d2,d0					; for level name, use frame ID as set in d2 above
-	; Card_ActNumber:
-	.frameIdSet:
-		cmpi.b	#(ZoneCount*4)+1,d0					; is this the act number object?
-		bne.s	.setupCardObject			; if not, branch
-		add.b	(v_act).w,d0				; use appropriate act number frame ID for current act
-		cmpi.b	#act4,(v_act).w				; check if on act 4 (for SBZ3/LZ4)
-		bne.s	.setupCardObject			; if not, branch
-		subq.b	#1,d0					; keep using "3" art for act number
 	; Card_MakeSprite:
 	.setupCardObject:
 		move.b	d0,obFrame(a1)				; display frame number set in d0
@@ -183,7 +170,7 @@ Card_ItemData:
 		; ZONE
 		dc.w $E4
 		dc.b 2
-		dc.b (ZoneCount*4)+0
+		dc.b ZoneCount*4
 
 		; ACT
 		dc.w $EA
@@ -193,22 +180,4 @@ Card_ItemData:
 		; Oval
 		dc.w $E0
 		dc.b 2
-		dc.b (ZoneCount*4)+4
-
-; ---------------------------------------------------------------------------
-; Title card start and target X-positioning data. Format:
-; - 2 words per item (start X-position, target X-position)
-; - 4 items per level (GREEN HILL, ZONE, ACT X, oval)
-; For FZ, the start and target position is identical, so it doesn't move.
-; ---------------------------------------------------------------------------
-Card_ConData:	;    Name       ZONE        ACT        Oval
-		dc.w $000,$120, -$104,$13C, $414,$154, $214,$154 ; GHZ
-		dc.w $000,$120, $FF04,$144, $41C,$15C, $021C,$015C	; SUNSET HILL
-		dc.w $0000,$0120, $FEF8,$0138, $0410,$0150, $0210,$0150	; NIGHT HILL
-		dc.w $000,$120, -$104,$13C, $414,$154, $214,$154 ; GHZ
-   	zonewarning Card_ConData,$10*4
-		dc.w $000,$120, -$11C,$124, $3EC,$3EC, $1EC,$12C ; FZ
-; ===========================================================================
-
-Card_NameTable:
-		dc.b 0,0, 1,1, 2,2, 3,3		; GHZ 1-3 (+ unused act 4)
+		dc.b (ZoneCount*4)+2

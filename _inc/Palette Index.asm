@@ -34,6 +34,7 @@ palid_SBZ3SonWat:	makePalEntry	Pal_SBZ3SonWat,		v_palette_line_1
 palid_SSResult:		makePalEntry	Pal_SSResult, 		v_palette_line_1
 palid_Continue:		makePalEntry	Pal_Continue, 		v_palette_line_1
 palid_Ending:		makePalEntry	Pal_Ending, 		v_palette_line_1
+palid_Menu:		makePalEntry	Pal_Menu,		v_palette_line_1
 	even
 
 
@@ -56,3 +57,5 @@ Pal_SBZ3SonWat:		bincludeEndMarker	"palette/Sonic - SBZ3 Underwater.bin"
 Pal_SSResult:		bincludeEndMarker	"palette/Special Stage Results.bin"
 Pal_Continue:		bincludeEndMarker	"palette/Special Stage Continue Bonus.bin"
 Pal_Ending:		bincludeEndMarker	"palette/Ending.bin"
+Pal_Menu:		bincludeEndMarker	"palette/Menu.bin"
+Pal_LevelSelectIcons:	bincludeEndMarker	"palette/Level Select Icons.bin"

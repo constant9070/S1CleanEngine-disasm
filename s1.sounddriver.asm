@@ -117,7 +117,9 @@ ptr_mus90:	dc.l Music90
 ptr_mus91:	dc.l Music91
 ptr_mus92:	dc.l Music92
 ptr_mus93:	dc.l Music93
-ptr_LevelSelect:	dc.l LevelSelectMus
+ptr_mus94:	dc.l Music94
+ptr_mus95:	dc.l Music95
+ptr_mus96:	dc.l Music96
 ptr_musend
 
 ; ===========================================================================
@@ -162,28 +164,6 @@ SoundPriorities:
 
 ; sub_71B4C:
 UpdateMusic:
-		stopZ80
-		nop	
-		nop	
-		nop	
-; loc_71B5A:
-.updateloop:
-		btst	#0,(z80_bus_request).l		; Is the z80 busy?
-		bne.s	.updateloop			; If so, wait
-
-		btst	#7,(z80_ram+zDAC_Status).l	; Is DAC accepting new samples?
-		beq.s	.driverinput			; Branch if yes
-		startZ80
-		nop	
-		nop	
-		nop	
-		nop	
-		nop	
-		bra.s	UpdateMusic
-; ===========================================================================
-
-; loc_71B82:
-.driverinput:
 		lea	(v_snddriver_ram&$FFFFFF).l,a6
 		clr.b	SMPS_RAM.f_voice_selector(a6)
 		tst.b	SMPS_RAM.f_pausemusic(a6)		; is music paused?
@@ -284,7 +264,6 @@ UpdateMusic:
 		jsr	PSGUpdateTrack(pc)
 ; loc_71C44:
 DoStartZ80:
-		startZ80
 		rts
 ; End of function UpdateMusic
 ; ===========================================================================
@@ -328,37 +307,10 @@ DACUpdateTrack:
 		move.b	SMPS_Track.SavedDAC(a5),d0	; Get sample
 		cmpi.b	#$80,d0				; Is it a rest?
 		beq.s	.locret				; Return if yes
-		btst	#3,d0				; Is bit 3 set (samples between $88-$8F)?
-		bne.s	.timpani			; Various timpani
-		move.b	d0,(z80_ram+zDAC_Sample).l
+		MPCM_play d0
 ; locret_71CAA:
 .locret:
 		rts
-; ===========================================================================
-; loc_71CAC:
-.timpani:
-		subi.b	#$88,d0				; Convert into an index
-		move.b	DAC_sample_rate(pc,d0.w),d0
-		; Warning: this affects the raw pitch of sample $83, meaning it will
-		; use this value from then on.
-		move.b	d0,(z80_ram+zTimpani_Pitch).l
-		move.b	#$83,(z80_ram+zDAC_Sample).l	; Use timpani
-		rts
-; End of function DACUpdateTrack
-
-; ===========================================================================
-; Note: this only defines rates for samples $88-$8D, meaning $8E-$8F are invalid.
-; Also, $8C-$8D are so slow you may want to skip them.
-; byte_71CC4:
-timpaniLoopCounter function scale,dpcmLoopCounter(int(zDAC_Timpani.sample_rate*scale))
-
-DAC_sample_rate:
-		dc.b timpaniLoopCounter(1.30)
-		dc.b timpaniLoopCounter(1.20)
-		dc.b timpaniLoopCounter(0.97)
-		dc.b timpaniLoopCounter(0.95)
-		dc.b $FF, $FF
-		even
 ; ===========================================================================
 
 ; sub_71CCA:
@@ -569,19 +521,23 @@ FMSetRest:
 ; ===========================================================================
 ; loc_71E50:
 PauseMusic:
-		bmi.s	.unpausemusic	; Branch if music is being unpaused
+		bmi.s	.unpausemusic			; Branch if music is being unpaused
 		cmpi.b	#2,SMPS_RAM.f_pausemusic(a6)
-		beq.w	.unpausedallfm
+		beq.w	.done
 		move.b	#2,SMPS_RAM.f_pausemusic(a6)
-		moveq	#2,d3
-		move.b	#$B4,d0		; Command to set AMS/FMS/panning
-		moveq	#0,d1		; No panning, AMS or FMS
-; loc_71E6A:
-.killpanloop:
-		jsr	WriteFMI(pc)
-		jsr	WriteFMII(pc)
+		moveq	#$FFFFFFB4,d0			; Command to set AMS/FMS/panning
+		moveq	#0,d1				; No panning, AMS or FMS
+		jsr	WriteFMI(pc)			; FM1
+		jsr	WriteFMII(pc)			; FM4
 		addq.b	#1,d0
-		dbf	d3,.killpanloop
+		jsr	WriteFMI(pc)			; FM2
+		jsr	WriteFMII(pc)			; FM5
+		addq.b	#1,d0
+		jsr	WriteFMI(pc)			; FM3
+		tst.b	SMPS_RAM.v_music_fm6_track(a6)	; is FM6 playing?
+		bpl.s	.notFM6				; if not, don't touch it, because FM6 is owned by MegaPCM then
+		jsr	WriteFMII(pc)			; FM6
+	.notFM6:
 
 		moveq	#2,d3
 		moveq	#$28,d0		; Key on/off register
@@ -593,6 +549,7 @@ PauseMusic:
 		jsr	WriteFMI(pc)
 		dbf	d3,.noteoffloop
 
+		MPCM_pause
 		jsr	PSGSilenceAll(pc)
 		bra.w	DoStartZ80
 ; ===========================================================================
@@ -601,7 +558,7 @@ PauseMusic:
 		clr.b	SMPS_RAM.f_pausemusic(a6)
 		moveq	#SMPS_Track.len,d3
 		lea	SMPS_RAM.v_music_fmdac_tracks(a6),a5
-		moveq	#SMPS_MUSIC_FM_DAC_TRACK_COUNT-1,d4	; 6 FM + 1 DAC tracks
+		moveq	#6-1,d4	
 ; loc_71EA0:
 .bgmfmloop:
 		btst	#7,SMPS_Track.PlaybackControl(a5)	; Is track playing?
@@ -642,6 +599,9 @@ PauseMusic:
 		jsr	WriteFMIorII(pc)
 ; loc_71EFE:
 .unpausedallfm:
+		MPCM_unpause
+
+.done:
 		bra.w	DoStartZ80
 
 ; ===========================================================================
@@ -868,6 +828,10 @@ Sound_PlayBGM:
 		jsr	WriteFMII(pc)
 ; loc_72114:
 .bgm_fmdone:
+		MPCM_stopZ80
+		move.b	#0,(MPCM_Z80_RAM+Z_MPCM_VolumeInput).l ; set DAC volume to maximum
+		move.b	#$C0,(MPCM_Z80_RAM+Z_MPCM_PanInput).l	; set panning to LR
+		MPCM_startZ80
 		moveq	#0,d7
 		move.b	3(a3),d7	; Load number of PSG tracks
 		beq.s	.bgm_psgdone	; branch if zero
@@ -960,10 +924,6 @@ PSGInitBytes:	dc.b $80, $A0, $C0	; Specifically, these configure writes to the P
 Sound_PlayMoreSFX:
 		tst.b	SMPS_RAM.f_1up_playing(a6)		; is 1-up playing?
 		bne.w	Sound_PlaySFX.clear_sndprio		; exit if it is
-		tst.b	SMPS_RAM.v_fadeout_counter(a6)		; is music being faded out?
-		bne.w	Sound_PlaySFX.clear_sndprio		; exit if it is
-		tst.b	SMPS_RAM.f_fadein_flag(a6)		; is music being faded in?
-		bne.w	Sound_PlaySFX.clear_sndprio		; exit if it is
 
 		clr.b	(v_spindash_sfx_flag).w			; clear Spin Dash rev flag
 		cmp.b	#sfx_SpinDash,d7			; is this the Spin Dash sound?
@@ -991,10 +951,6 @@ Sound_PlayMoreSFX:
 Sound_PlaySFX:
 		tst.b	SMPS_RAM.f_1up_playing(a6)	; Is 1-up playing?
 		bne.w	.clear_sndprio			; Exit is it is
-		tst.b	SMPS_RAM.v_fadeout_counter(a6)	; Is music being faded out?
-		bne.w	.clear_sndprio			; Exit if it is
-		tst.b	SMPS_RAM.f_fadein_flag(a6)	; Is music being faded in?
-		bne.w	.clear_sndprio			; Exit if it is
 		clr.b	(v_spindash_sfx_flag).w			; clear Spin Dash sfx rev flag
 		cmpi.b	#sfx_Ring,d7			; is ring sound effect played?
 		bne.s	.sfx_notRing			; if not, branch
@@ -1141,10 +1097,6 @@ SFX_SFXChannelRAM:
 Sound_PlaySpecial:
 		tst.b	SMPS_RAM.f_1up_playing(a6)	; Is 1-up playing?
 		bne.w	.locret				; Return if so
-		tst.b	SMPS_RAM.v_fadeout_counter(a6)	; Is music being faded out?
-		bne.w	.locret				; Exit if it is
-		tst.b	SMPS_RAM.f_fadein_flag(a6)	; Is music being faded in?
-		bne.w	.locret				; Exit if it is
 		movea.l	(Go_SpecSoundIndex).l,a0
 		subi.b	#spec__First,d7			; Make it 0-based
 		lsl.w	#2,d7
@@ -1390,7 +1342,6 @@ FadeOutMusic:
 		jsr	StopSpecialSFX(pc)
 		move.b	#3,SMPS_RAM.v_fadeout_delay(a6)			; Set fadeout delay to 3
 		move.b	#$28,SMPS_RAM.v_fadeout_counter(a6)		; Set fadeout counter
-		clr.b	SMPS_RAM.v_music_dac_track.PlaybackControl(a6)	; Stop DAC track
 		clr.b	SMPS_RAM.f_speedup(a6)				; Disable speed shoes tempo
 		rts
 ; ===========================================================================
@@ -1398,7 +1349,7 @@ FadeOutMusic:
 ; sub_72504:
 DoFadeOut:
 		move.b	SMPS_RAM.v_fadeout_delay(a6),d0	; Has fadeout delay expired?
-		beq.s	.continuefade			; Branch if yes
+		beq.w	.continuefade			; Branch if yes
 		subq.b	#1,SMPS_RAM.v_fadeout_delay(a6)
 		rts
 ; ===========================================================================
@@ -1407,6 +1358,20 @@ DoFadeOut:
 		subq.b	#1,SMPS_RAM.v_fadeout_counter(a6)	; Update fade counter
 		beq.w	StopAllSound				; Branch if fade is done
 		move.b	#3,SMPS_RAM.v_fadeout_delay(a6)		; Reset fade delay
+		; Fade out DAC
+		lea	SMPS_RAM.v_music_dac_track(a6),a5
+		tst.b	(a5)					; is DAC playing?
+		bpl.s	.dac_done				; if yes, branch
+		addq.b	#4,SMPS_Track.Volume(a5)		; Increase volume attenuation
+		bpl.s	.dac_update_volume
+		and.b	#$7F,(a5)				; Stop channel
+		bra.s	.dac_done
+
+.dac_update_volume:
+		move.b	SMPS_Track.Volume(a5),d0
+		lsr.b	#3,d0
+		MPCM_setVol d0
+.dac_done:
 		lea	SMPS_RAM.v_music_fm_tracks(a6),a5
 		moveq	#SMPS_MUSIC_FM_TRACK_COUNT-1,d7		; 6 FM tracks
 ; loc_72524:
@@ -1487,9 +1452,6 @@ FMSilenceAll:
 ; ---------------------------------------------------------------------------
 ; Sound_E4: StopSoundAndMusic:
 StopAllSound:
-		moveq	#$2B,d0		; Enable/disable DAC
-		move.b	#$80,d1		; Enable DAC
-		jsr	WriteFMI(pc)
 		moveq	#$27,d0		; Timers, FM3/FM6 mode
 		moveq	#0,d1		; FM3/FM6 normal mode, disable timers
 		jsr	WriteFMI(pc)
@@ -1505,6 +1467,7 @@ StopAllSound:
 		clr.l	(a0)+
 		dbf	d0,.clearramloop
 
+		MPCM_stop
 		move.b	#$80,SMPS_RAM.v_sound_id(a6)	; set music to $80 (silence)
 		jsr	FMSilenceAll(pc)
 		bra.w	PSGSilenceAll
@@ -1632,16 +1595,30 @@ SlowDownMusic:
 ; sub_7267C:
 DoFadeIn:
 		tst.b	SMPS_RAM.v_fadein_delay(a6)	; Has fadein delay expired?
-		beq.s	.continuefade			; Branch if yes
+		beq.w	.continuefade			; Branch if yes
 		subq.b	#1,SMPS_RAM.v_fadein_delay(a6)
 		rts
 ; ===========================================================================
 ; loc_72688:
 .continuefade:
 		tst.b	SMPS_RAM.v_fadein_counter(a6)		; Is fade done?
-		beq.s	.fadedone				; Branch if yes
+		beq.w	.fadedone				; Branch if yes
 		subq.b	#1,SMPS_RAM.v_fadein_counter(a6)	; Update fade counter
 		move.b	#2,SMPS_RAM.v_fadein_delay(a6)		; Reset fade delay
+		; Fade in DAC
+		lea	SMPS_RAM.v_music_dac_track(a6),a5
+		tst.b	(a5)					; is DAC playing?
+		bpl.s	.dac_done				; if yes, branch
+		subq.b	#4,SMPS_Track.Volume(a5)		; Increase volume attenuation
+		bcc.s	.dac_update_volume
+		move.b	#0,SMPS_Track.Volume(a5)
+		bra.s	.dac_done
+
+.dac_update_volume:
+		move.b	SMPS_Track.Volume(a5),d0
+		lsr.b	#3,d0
+		MPCM_setVol d0
+.dac_done:
 		lea	SMPS_RAM.v_music_fm_tracks(a6),a5
 		moveq	#SMPS_MUSIC_FM_TRACK_COUNT-1,d7		; 6 FM tracks
 ; loc_7269E:
@@ -1675,7 +1652,6 @@ DoFadeIn:
 ; ===========================================================================
 ; loc_726D6:
 .fadedone:
-		bclr	#2,SMPS_RAM.v_music_dac_track.PlaybackControl(a6)	; Clear 'SFX overriding' bit
 		clr.b	SMPS_RAM.f_fadein_flag(a6)				; Stop fadein
 
 	if FixBugs
@@ -1740,60 +1716,50 @@ WriteFMIorIIMain:
 
 ; sub_72722:
 WriteFMIorII:
-		btst	#2,SMPS_Track.VoiceControl(a5)	; Is this bound for part I or II?
-		bne.s	WriteFMIIPart			; Branch if for part II
-		add.b	SMPS_Track.VoiceControl(a5),d0	; Add in voice control bits
-; End of function WriteFMIorII
-; ===========================================================================
+		move.b	SMPS_Track.VoiceControl(a5),d2
+		subq.b	#4,d2				; Is this bound for part I or II?
+		bcc.s	WriteFMIIPart			; If yes, branch
+		addq.b	#4,d2				; Add in voice control bits
+		add.b	d2,d0
 
-; Strangely, despite this driver being SMPS 68k Type 1b,
-; WriteFMI and WriteFMII are the Type 1a versions.
-; In Sonic 1's prototype, they were the Type 1b versions.
-; I wonder why they were changed?
-
-; sub_7272E:
+; ---------------------------------------------------------------------------
 WriteFMI:
-		move.b	(ym2612_a0).l,d2
-		btst	#7,d2		; Is FM busy?
-		bne.s	WriteFMI	; Loop if so
+		MPCM_stopZ80
+		MPCM_ensureYMWriteReady
+.waitLoop:	tst.b	(ym2612_a0).l		; is FM busy?
+		bmi.s	.waitLoop		; branch if yes
 		move.b	d0,(ym2612_a0).l
-		nop	
-		nop	
-		nop	
-; loc_72746:
-.waitloop:
-		move.b	(ym2612_a0).l,d2
-		btst	#7,d2		; Is FM busy?
-		bne.s	.waitloop	; Loop if so
-
+		nop
 		move.b	d1,(ym2612_d0).l
+		nop
+		nop
+.waitLoop2:	tst.b	(ym2612_a0).l		; is FM busy?
+		bmi.s	.waitLoop2		; branch if yes
+		move.b	#$2A,(ym2612_a0).l	; restore DAC output for MegaPCM
+		MPCM_startZ80
 		rts
 ; End of function WriteFMI
 
 ; ===========================================================================
 ; loc_7275A:
 WriteFMIIPart:
-		move.b	SMPS_Track.VoiceControl(a5),d2	; Get voice control bits
-		bclr	#2,d2				; Clear chip toggle
-		add.b	d2,d0				; Add in to destination register
-; ===========================================================================
+		add.b	d2,d0			; Add in to destination register
 
-; sub_72764:
+; ---------------------------------------------------------------------------
 WriteFMII:
-		move.b	(ym2612_a0).l,d2
-		btst	#7,d2		; Is FM busy?
-		bne.s	WriteFMII	; Loop if so
+		MPCM_stopZ80
+		MPCM_ensureYMWriteReady
+.waitLoop:	tst.b	(ym2612_a0).l		; is FM busy?
+		bmi.s	.waitLoop		; branch if yes
 		move.b	d0,(ym2612_a1).l
-		nop	
-		nop	
-		nop	
-; loc_7277C:
-.waitloop:
-		move.b	(ym2612_a0).l,d2
-		btst	#7,d2		; Is FM busy?
-		bne.s	.waitloop	; Loop if so
-
+		nop
 		move.b	d1,(ym2612_d1).l
+		nop
+		nop
+.waitLoop2:	tst.b	(ym2612_a0).l		; is FM busy?
+		bmi.s	.waitLoop2		; branch if yes
+		move.b	#$2A,(ym2612_a0).l	; restore DAC output for MegaPCM
+		MPCM_startZ80
 		rts
 ; End of function WriteFMII
 
@@ -2150,12 +2116,22 @@ cfPanningAMSFMS:
 		move.b	(a4)+,d1			; New AMS/FMS/panning value
 		tst.b	SMPS_Track.VoiceControl(a5)	; Is this a PSG track?
 		bmi.s	locret_72AEA			; Return if yes
-		move.b	SMPS_Track.AMSFMSPan(a5),d0	; Get current AMS/FMS/panning
-		andi.b	#$37,d0				; Retain bits 0-2, 3-4 if set
-		or.b	d0,d1				; Mask in new value
+		moveq	#$37,d0
+		and.b	SMPS_Track.AMSFMSPan(a5),d0	; Get current AMS/FMS
+		or.b	d0,d1				; Add new panning bits
 		move.b	d1,SMPS_Track.AMSFMSPan(a5)	; Store value
-		move.b	#$B4,d0				; Command to set AMS/FMS/panning
+		tst.b	SMPS_RAM.f_updating_dac(a6)	; Are we updating DAC?
+		bmi.s	.updateDACPanning		; If yes, branch
+		moveq	#$FFFFFFB4,d0			; Command to set AMS/FMS/panning
 		bra.w	WriteFMIorIIMain
+
+	.updateDACPanning:
+		; Send to DAC panning Mega PCM instead of updating it directly.
+		; Mega PCM needs to track panning on its own to restore it in
+		; normal sample is interrupted by an SFX sample
+		andi.b	#$C0,d1
+		MPCM_setPan d1
+		rts
 ; ===========================================================================
 
 locret_72AEA:
@@ -2200,7 +2176,10 @@ cfFadeInToPrevious:
 		jsr	WriteFMI(pc)	; Write to YM2612 Port 0 [sub_7272E]
 	endif
 
-		bset	#2,SMPS_RAM.v_music_dac_track.PlaybackControl(a6)	; Set 'SFX overriding' bit
+		tst.b	SMPS_RAM.v_music_dac_track(a6)			; is DAC playing?
+		bpl.s	.dacdone					; if not, branch
+		move.b	#$7F,SMPS_RAM.v_music_dac_track.Volume(a6)	; set initial DAC volume
+.dacdone:
 		movea.l	a5,a3
 		move.b	#$28,d6
 		sub.b	SMPS_RAM.v_fadein_counter(a6),d6	; If fade already in progress, this adjusts track volume accordingly
@@ -2240,7 +2219,6 @@ cfFadeInToPrevious:
 		move.b	#$80,SMPS_RAM.f_fadein_flag(a6)		; Trigger fade-in
 		move.b	#$28,SMPS_RAM.v_fadein_counter(a6)	; Fade-in delay
 		clr.b	SMPS_RAM.f_1up_playing(a6)
-		startZ80
 		addq.w	#8,sp		; Tamper return value so we don't return to caller
 		rts
 ; ===========================================================================
@@ -2645,12 +2623,6 @@ cfOpF9:
 		move.b	#$8C,d0		; D1L/RR of Operator 4
 		move.b	#$F,d1		; Loaded with fixed value (max RR, 1TL)
 		bra.w	WriteFMI
-; ===========================================================================
-; ---------------------------------------------------------------------------
-; DAC driver (Kosinski-compressed)
-; ---------------------------------------------------------------------------
-; Kos_Z80:
-DACDriver:	include "sound/z80.asm"
 
 ; ---------------------------------------------------------------------------
 ; SMPS2ASM - A collection of macros that make SMPS's bytecode human-readable.
@@ -2692,7 +2664,11 @@ Music92:	include "sound/music/Mus92 - Drowning.asm"
 		even
 Music93:	include "sound/music/Mus93 - Get Emerald.asm"
 		even
-LevelSelectMus:	include "sound/music/ignore this/SkyBase.asm"
+Music94:	include "sound/music/LevelSelect.asm"
+		even
+Music95:	include "sound/music/96 - Super Sonic.asm"
+		even
+Music96:	include "sound/music/ErrorHandlerMus.asm"
 		even
 
 ; ---------------------------------------------------------------------------
@@ -2764,6 +2740,13 @@ ptr_sndD1:	dc.l SoundD1
 ptr_sndD2:	dc.l SoundD2
 ptr_sndD3:	dc.l SoundD3
 ptr_sndD4:	dc.l SoundD4
+ptr_sndD5:    dc.l SoundD5
+ptr_sndD6:    dc.l SoundD6
+ptr_sndD7:    dc.l SoundD7
+ptr_sndD8:    dc.l SoundD8
+ptr_sndD9:    dc.l SoundD9
+ptr_sndDA:    dc.l SoundDA
+ptr_sndDB:    dc.l SoundDB
 ptr_extend
 
 ; ---------------------------------------------------------------------------
@@ -2882,4 +2865,18 @@ SoundD2:	include "sound/sfx/SndD2 - Peelout Charge.asm"
 SoundD3:	include "sound/sfx/SndD3 - Peelout Release.asm"
 		even
 SoundD4:	include "sound/sfx/SndD4 - Peelout Stop.asm"
+		even
+SoundD5:    include    "sound/sfx/SndD5 - Fire Shield.asm"
+        even
+SoundD6:    include    "sound/sfx/SndD6 - Fire Attack.asm"
+        even
+SoundD7:    include    "sound/sfx/SndD7 - Bubble Shield.asm"
+        even
+SoundD8:    include    "sound/sfx/SndD8 - Bubble Attack.asm"
+        even
+SoundD9:    include    "sound/sfx/SndD9 - Lightning Shield.asm"
+        even
+SoundDA:    include    "sound/sfx/SndDA - Lightning Attack.asm"
+        even
+SoundDB:	include "sound/sfx/DF - Super Transform.asm"
 		even

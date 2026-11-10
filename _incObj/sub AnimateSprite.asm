@@ -18,32 +18,59 @@ Anim_Run:
 		bpl.s	Anim_Wait			; if time remains, do nothing
 
 Anim_LoadNextFrame:
-		add.w	d0,d0				; double animation ID for word-based indexing
-		adda.w	(a1,d0.w),a1			; jump to appropriate animation script
-		move.b	(a1),obTimeFrame(a0)		; load frame duration (always the first byte)
-		moveq	#0,d1				; clear d1
-		move.b	obAniFrame(a0),d1		; load current frame index number
-		move.b	1(a1,d1.w),d0			; read next frame ID from script
-		bmi.s	Anim_End_FF			; if ID is negative, this is a special flag, branch
+		add.w	d0,d0					; double animation ID for word-based indexing
+		adda.w	(a1,d0.w),a1				; jump to appropriate animation script
+		move.b	(a1),obTimeFrame(a0)			; load frame duration (always the first byte)
+		moveq	#0,d1					; clear d1
+		move.b	obAniFrame(a0),d1			; load current frame index number
+		move.b	1(a1,d1.w),d0				; read next frame ID from script
+		cmpi.b	#af2ndRoutine,d0	; MJ: is this a special flag?
+		bhs.s	Anim_End_FF		; MJ: if yes, branch
 ; ---------------------------------------------------------------------------
 
 Anim_SetFrameAndFlipFlags:
-		move.b	d0,d1				; copy new frame ID
-		andi.b	#$1F,d0				; limit possible frame IDs to $20 (other bits are occupied by flags)
-		move.b	d0,obFrame(a0)			; write new frame ID to object
+		; Some objects in Sonic 1 rely on the X/Y flip flags in animation scripts,
+		; so this section is needed to ensure backwards compatibility with those.
+		; Ideally, all objects here are reworked to no longer need this exception.
+		cmpi.b	#$1F,d0					; is frame ID $1F or lower?
+		bls.s	.modern					; if yes, no need to check for legacy
+		move.b	(a0),d1					; get current object's ID
+		cmpi.b	#id_Crabmeat,d1				; check if it's an object still making use of the X/Y flip flags
+		beq.s	.legacy
+		cmpi.b	#id_LavaBall,d1
+		beq.s	.legacy
+		cmpi.b	#id_GrassFire,d1
+		beq.s	.legacy
+		cmpi.b	#id_BossFire,d1
+		beq.s	.legacy
+		cmpi.b	#id_SpinPlatform,d1
+		beq.s	.legacy
+		cmpi.b	#id_SpinConvey,d1
+		bne.s	.modern					; if it's none of these, it's a new object that uses more than $1F frames
 
-		; Handle aniXFlip and aniYFlip flags if specified in animation scripts.
-		; This part is the main reason why non-Sonic objects are limited to only $20 frames,
-		; and in later games this limitation was removed (flipping was instead exclusively
-		; handled through separate, flipped sprite mappings sets, rather than animation flags).
-		move.b	obStatus(a0),d0			; get object's current status flags
-		rol.b	#3,d1				; shift aniXFlip and aniYFlip into low bits to match obStatus format
-		eor.b	d0,d1				; xor with existing flip state of object
-		andi.b	#sprite_xflip|sprite_yflip,d1	; limit result to only X and Y flip state
+.legacy:
+		move.b	d0,d1					; copy new frame ID
+		andi.b	#$1F,d0					; limit possible frame IDs to $20 (other bits are occupied by flags)
+
+		move.b	d0,obFrame(a0)				; write new frame ID to object
+
+		move.b	obStatus(a0),d0				; get object's current status flags
+		rol.b	#3,d1					; shift aniXFlip and aniYFlip into low bits to match obStatus format
+		eor.b	d0,d1					; xor with existing flip state of object
+		bra.s	.setflip				; remaining code is the same
+; ---------------------------------------------------------------------------
+
+
+.modern:
+		move.b	d0,obFrame(a0)				; load sprite number
+		move.b	obStatus(a0),d1				; get object's current status flags
+.setflip:
+		andi.b	#sprite_xflip|sprite_yflip,d1		; limit result to only X and Y flip state
 		andi.b	#~(sprite_xflip|sprite_yflip),obRender(a0) ; clear previous X and Y flip states of objects
-		or.b	d1,obRender(a0)			; set new X and Y flip states for object
+		or.b	d1,obRender(a0)				; set new X and Y flip states for object
 
-		addq.b	#1,obAniFrame(a0)		; advance animation script to next index
+		addq.b	#1,obAniFrame(a0)			; advance animation script to next index
+
 ; ---------------------------------------------------------------------------
 
 Anim_Wait:

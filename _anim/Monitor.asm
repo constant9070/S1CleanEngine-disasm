@@ -12,6 +12,9 @@ Ani_Monitor:	dc.w .static-Ani_Monitor
 		dc.w .s-Ani_Monitor
 		dc.w .goggles-Ani_Monitor
 		dc.w .breaking-Ani_Monitor
+		dc.w .fshield-Ani_Monitor
+		dc.w .lshield-Ani_Monitor
+		dc.w .bshield-Ani_Monitor
 
 .static:	dc.b 1
 		dc.b 0, 1, 2
@@ -62,4 +65,19 @@ Ani_Monitor:	dc.w .static-Ani_Monitor
 		dc.b 0, 1, 2
 		dc.b $B
 		dc.b afBack, 1
+		even
+
+.fshield:	dc.b 1
+		dc.b 0, $C, $C, 1, $C, $C, 2, $C, $C
+		dc.b afEnd
+		even
+
+.lshield:	dc.b 1
+		dc.b 0, $D, $D, 1, $D, $D, 2, $D, $D
+		dc.b afEnd
+		even
+
+.bshield:	dc.b 1
+		dc.b 0, $E, $E, 1, $E, $E, 2, $E, $E
+		dc.b afEnd
 		even

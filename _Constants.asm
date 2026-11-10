@@ -1,3 +1,20 @@
+
+; ---------------------------------------------------------------------------
+; Important for Widescreen
+; ---------------------------------------------------------------------------
+
+	if WidescreenType
+ExtraWidth = 64
+	else
+ExtraWidth = 0
+	endif
+
+	if ElementalShields
+AirDash = 0
+  else
+AirDash = AirDashSettings
+  endif
+
 ; ---------------------------------------------------------------------------
 ; Constants
 ; ---------------------------------------------------------------------------
@@ -79,7 +96,7 @@ id_MZ:		equ 2
 id_SLZ:		equ 3
 id_SYZ:		equ 4
 id_SBZ:		equ 5
-id_EndZ:	equ 6
+id_EndZ:	equ 1
 id_SS:		equ 7	; only used for level select
 
 ; Levels (zone/act word combos)
@@ -154,6 +171,7 @@ btnA:		equ 1<<bitA			; ($40)
 btnStart:	equ 1<<bitStart			; ($80)
 btnDir:		equ btnUp|btnDn|btnL|btnR	; ($0F)
 btnABC:		equ btnA|btnB|btnC		; ($70)
+btnBC:		equ btnB|btnC			; ($30)
 
 ; Joypad input - extra buttons on 6-button controller inputs
 bitZ:		equ 0
@@ -197,7 +215,8 @@ obY:		equ $C	; y-axis position (2-4 bytes)
 obSubpixelY:	equ $E	; y-axis subpixel position for playfield items (2 bytes)
 obVelX:		equ $10	; x-axis velocity (2 bytes)
 obVelY:		equ $12	; y-axis velocity (2 bytes)
-obInertia:	equ $14	; potential speed (2 bytes)
+respawn_index:		equ $14					; S3K object manager respawn table address (2 bytes)
+obInertia:	equ $20	; potential speed (2 bytes)
 obHeight:	equ $16	; height/2
 obWidth:	equ $17	; width/2
 obPriority:	equ $18	; sprite stack priority -- 0 is front
@@ -211,7 +230,7 @@ obDelayAni:	equ $1F	; time to delay animation
 obColType:	equ $20	; collision response type
 obColProp:	equ $21	; collision extra property
 obStatus:	equ $22	; orientation or mode
-obRespawnNo:	equ $23	; respawn list index number
+; obRespawnNo:	equ $23	; respawn list index number
 obRoutine:	equ $24	; routine number
 ob2ndRout:	equ $25	; secondary routine number
 obSolid:	equ ob2ndRout ; solid status flag
@@ -219,6 +238,7 @@ obAngle:	equ $26	; angle
 obSubtype:	equ $28	; object subtype
 
 ; Object variables used by Sonic
+double_jump_flag:    equ $2D    ; flag for elemental shields
 homingattack:		equ $2F					; flag set during a homing attack / jump dash
 flashtime:	equ $30	; time between flashes after getting hit (2 bytes)
 invtime:	equ $32	; time left for invincibility (2 bytes)
@@ -233,6 +253,40 @@ restartime:	equ $3A	; time left before level restarts after dying (2 bytes)
 jumping:	equ $3C	; flag set while Sonic is jumping
 standonobject:	equ $3D	; object index Sonic stands on
 locktime:	equ $3E	; temporary D-Pad control lock timer (2 bytes)
+
+; Sub sprites from Sonic 2: when childsprites are activated (bit 6 of obRender set)
+; (Comments denote overridden SSTs, 0-5 and high words of obX/obY same as normal)
+next_subspr:		equ 6	; Length of sub sprite data
+mainspr_mapframe:	equ $B	; obScreenY (low byte)
+mainspr_width:		equ $E	; obY (low word hi)
+mainspr_childsprites:	equ $F	; obY (low word lo)
+mainspr_height:		equ $1C	; obInertia (high byte)
+subspr_data:		equ $1C
+sub2_x_pos:		equ subspr_data+next_subspr*0+0	; obVelX
+sub2_y_pos:		equ subspr_data+next_subspr*0+2	; obVelY
+sub2_mapframe:		equ subspr_data+next_subspr*0+5	; obInertia (low byte)
+sub3_x_pos:		equ subspr_data+next_subspr*1+0	; obHeight/obWidth
+sub3_y_pos:		equ subspr_data+next_subspr*1+2	; obPriority/obActWid
+sub3_mapframe:		equ subspr_data+next_subspr*1+5	; obAniFrame
+sub4_x_pos:		equ subspr_data+next_subspr*2+0	; obAnim/obPrevAni
+sub4_y_pos:		equ subspr_data+next_subspr*2+2	; obTimeFrame/obDelayAni
+sub4_mapframe:		equ subspr_data+next_subspr*2+5	; obColProp
+sub5_x_pos:		equ subspr_data+next_subspr*3+0	; obStatus/obRespawnNo
+sub5_y_pos:		equ subspr_data+next_subspr*3+2	; obRoutine/ob2ndRout
+sub5_mapframe:		equ subspr_data+next_subspr*3+5	; obAngle (low byte)
+sub6_x_pos:		equ subspr_data+next_subspr*4+0	; obSubtype/objoff_29
+sub6_y_pos:		equ subspr_data+next_subspr*4+2	; objoff_2A/objoff_2B
+sub6_mapframe:		equ subspr_data+next_subspr*4+5	; objoff_2D
+sub7_x_pos:		equ subspr_data+next_subspr*5+0	; objoff_2E/objoff_2F
+sub7_y_pos:		equ subspr_data+next_subspr*5+2	; objoff_30/objoff_31
+sub7_mapframe:		equ subspr_data+next_subspr*5+5	; objoff_33
+sub8_x_pos:		equ subspr_data+next_subspr*6+0	; objoff_34/objoff_35
+sub8_y_pos:		equ subspr_data+next_subspr*6+2	; objoff_36/objoff_37
+sub8_mapframe:		equ subspr_data+next_subspr*6+5	; objoff_39
+sub9_x_pos:		equ subspr_data+next_subspr*7+0	; objoff_3A/objoff_3B
+sub9_y_pos:		equ subspr_data+next_subspr*7+2	; objoff_3C/objoff_3D
+sub9_mapframe:		equ subspr_data+next_subspr*7+5	; objoff_3F
+; End of Sonic 2 variables
 
 ; Sonic's collision sizes
 sonic_width:		equ 18/2	; Sonic's width
@@ -310,7 +364,9 @@ bgm_Continue:	equ ((ptr_mus90-MusicIndex)/4)+bgm__First
 bgm_Credits:	equ ((ptr_mus91-MusicIndex)/4)+bgm__First
 bgm_Drowning:	equ ((ptr_mus92-MusicIndex)/4)+bgm__First
 bgm_Emerald:	equ ((ptr_mus93-MusicIndex)/4)+bgm__First
-bgm_LevelSelect:	equ ((ptr_LevelSelect-MusicIndex)/4)+bgm__First
+bgm_LevelSelect:	equ ((ptr_mus94-MusicIndex)/4)+bgm__First
+bgm_SuperSonic:	equ ((ptr_mus95-MusicIndex)/4)+bgm__First
+bgm_Error:	equ ((ptr_mus96-MusicIndex)/4)+bgm__First
 bgm__Last:	equ ((ptr_musend-MusicIndex-4)/4)+bgm__First
 
 ; Sound effects
@@ -366,16 +422,23 @@ sfx_Signpost:	equ ((ptr_sndCF-SoundIndex)/4)+sfx__First
 sfx__Last:	equ ((ptr_sndend-SoundIndex-4)/4)+sfx__First
 
 ; Special sound effects
-spec__First:	equ $F0
+spec__First:	equ $E0
 sfx_Waterfall:	equ ((ptr_sndD0-SpecSoundIndex)/4)+spec__First
 spec__Last:	equ ((ptr_specend-SpecSoundIndex-4)/4)+spec__First
 
 ; Extra sound effects
-ext__First:		equ $F1
+ext__First:		equ $E1
 sfx_SpinDash:		equ ((ptr_sndD1-ExtSoundIndex)/4)+ext__First
 sfx_PeelCharge:		equ ((ptr_sndD2-ExtSoundIndex)/4)+ext__First
 sfx_PeelRelease:	equ ((ptr_sndD3-ExtSoundIndex)/4)+ext__First
 sfx_PeelStop:		equ ((ptr_sndD4-ExtSoundIndex)/4)+ext__First
+sfx_FireShield:    equ ((ptr_sndD5-ExtSoundIndex)/4)+ext__First
+sfx_FireAttack:    equ ((ptr_sndD6-ExtSoundIndex)/4)+ext__First
+sfx_BubbleShield:    equ ((ptr_sndD7-ExtSoundIndex)/4)+ext__First
+sfx_BubbleAttack:    equ ((ptr_sndD8-ExtSoundIndex)/4)+ext__First
+sfx_ElectricShield:    equ ((ptr_sndD9-ExtSoundIndex)/4)+ext__First
+sfx_ElectricAttack:    equ ((ptr_sndDA-ExtSoundIndex)/4)+ext__First
+sfx_Transform:    equ ((ptr_sndDB-ExtSoundIndex)/4)+ext__First
 ext__Last:		equ ((ptr_extend-ExtSoundIndex-4)/4)+ext__First
 
 flg__First:	equ $FB
@@ -464,7 +527,6 @@ ArtTile_LZ_Block_1:		equ $1E0
 ArtTile_LZ_Block_2:		equ $1F0
 ArtTile_LZ_Splash:		equ $259
 ArtTile_LZ_Gargoyle:		equ $2E9
-ArtTile_LZ_Water_Surface:	equ $300
 ArtTile_LZ_Spikeball_Chain:	equ $310
 ArtTile_LZ_Flapping_Door:	equ $328
 ArtTile_LZ_Bubbles:		equ $348
@@ -538,6 +600,7 @@ ArtTile_Spikes:			equ $51B
 ArtTile_Spring_Horizontal:	equ $523
 ArtTile_Spring_Vertical:	equ $533
 ArtTile_Shield:			equ $541
+ArtTile_SuperSonicStar:		equ ArtTile_Invincibility
 ArtTile_Invincibility:		equ $55C
 ArtTile_Game_Over:		equ $55E
 ArtTile_Title_Card:		equ $580
@@ -554,8 +617,9 @@ ArtTile_HUDRings:		equ ArtTile_HUD+$30
 
 ArtTile_Sonic:			equ $780
 ArtTile_Points:			equ $797
-ArtTile_Lamppost:		equ $D800/tile_size		; =$6C0 (changed from $7A0 to make room for the Spin Dash dust)
-ArtTile_SpinDust:		equ $F400/tile_size		; = $7A0
+ArtTile_Lamppost:		equ $7A0			; back at its original place ($7A0-$7B1, 18 tiles)
+ArtTile_SpinDust:		equ ArtTile_Game_Over		; Spin Dash dust uses 14 tiles at a time (see its DPLC). It shares the GAME OVER / TIME OVER art area,
+								; which is only loaded when Sonic runs out of lives or time, so it is free during normal play
 ArtTile_Ring:			equ $7B2
 ArtTile_Ring_Loss:		equ ArtTile_Ring+4
 ArtTile_Sparkles:		equ ArtTile_Ring+$A
@@ -587,6 +651,7 @@ ArtTile_Title_Japanese_Text:	equ $000
 ArtTile_Title_Foreground:	equ $200
 ArtTile_Title_Sonic:		equ $300
 ArtTile_Title_Trademark:	equ $510
+ArtTile_Title_Menu:		equ $5C0
 ArtTile_Level_Select_Font:	equ $680
 
 ; Continue Screen
@@ -648,3 +713,24 @@ ArtTile_Credits_Font:		equ $5A0
 
 ; Error Handler
 ArtTile_Error_Handler_Font:	equ $7C0
+
+; Level Select
+ArtTile_MenuFont:		equ $10		; level select font
+ArtTile_MenuBackground:		equ $40		; uncompressed background starts here
+ArtTile_LevelSelectIcons:	equ $400	; zone icon art
+
+; Elemental Shield Statuses
+Status_FireShield   = 1
+Status_LightningShield   = 2
+Status_BubbleShield   = 3
+
+; VRAM overlap checks (update the sizes if the art changes)
+	if ArtTile_Monitor+$44>ArtTile_HUD
+		fatal "The monitor art ($44 tiles) overlaps the HUD art."
+	endif
+	if ArtTile_Lamppost+$12>ArtTile_Ring
+		fatal "The lamppost art (18 tiles) overlaps the ring art."
+	endif
+	if ArtTile_SpinDust+14>ArtTile_Title_Card
+		fatal "The Spin Dash dust buffer (14 tiles) overlaps the title card / animal art."
+	endif

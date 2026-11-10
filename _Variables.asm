@@ -18,7 +18,25 @@ v_lvllayout_end:
 
 v_collision1:		ds.b	$300				; MJ: path A
 v_collision2:		ds.b	$300				; MJ: path B
-    ds.b $A00
+
+Object_Respawn_Table: 	ds.b	$300				; S3K Object Manager respawn table ($300 bytes)
+Camera_X_Pos_Last:	ds.w	1				; camera X position from previous frame (2 bytes)
+Camera_Y_Pos_Last:	ds.w	1				; camera Y position from previous frame (2 bytes)
+Camera_X_Coarse_Back:	ds.w	1				; camera X position - $80, rounded down to the nearest multiple of $80 (2 bytes)
+Camera_Y_Coarse_Back:	ds.w	1				; camera Y position - $80, rounded down to the nearest multiple of $80 (2 bytes)
+Object_Manager_size:	equ	*-Object_Respawn_Table
+
+v_ringmanager:
+v_ringstates:		ds.b	512				; collected rings status table, 1 byte per ring
+v_ringstates_pointer:	ds.w	1				; address within v_ringstates RAM of the first ring found within left screen boundary
+v_ringwindow_start:	ds.l	1				; address in ROM ring layout of the first ring found within left screen boundary
+v_ringwindow_end:	ds.l	1				; address in ROM ring layout of the first ring found beyond right screen boundary
+v_ringanimqueue_count:	ds.w	1				; current entry count in v_ringanimqueue
+v_ringanimqueue:	ds.w	$3F				; queue of recently collected rings storing pointers pointing inside v_ringstates
+v_draw_rings:		ds.b	1				; flag set if ring sprites should be drawn
+v_ringmanager_size:	equ	*-v_ringmanager			; size of all RAM occupied by rings manager
+
+			ds.b	($A00-Object_Manager_size)-v_ringmanager_size ; unused RAM (was blocks buffers)
 
 v_bgscroll_buffer:	ds.b	$200				; background scroll buffer
 v_ngfx_buffer:		ds.b	$200				; Nemesis graphics decompression buffer
@@ -31,7 +49,12 @@ Art_Buffer_End:							; end of decompression buffer
 
 VDP_Command_Buffer:	ds.w	7*$12				; stores 18 ($12) VDP commands to issue the next time ProcessDMAQueue is called
 VDP_Command_Buffer_Slot:ds.l	1				; stores the address of the next open slot for a queued VDP command
-			ds.b	$200				; unused ($200 were freed up by the new DMA Queue)
+
+v_waterline:		ds.b	1		; backup of the water line used for HBlank
+
+v_shieldtype:		ds.b	1				; elemental shield type (bit 1 = fire, bit 2 = lightning, bit 3 = bubble; see Status_*Shield)
+
+			ds.b	$1FE				; unused ($200 were freed up by the new DMA Queue, one byte is used by the waterline variable and one by the shield type)
 v_tracksonic:		ds.b	$100				; position tracking data for Sonic
 v_hscrolltablebuffer:	ds.b	$380				; scrolling table data
 v_hscrolltablebuffer_end:
@@ -69,8 +92,6 @@ v_starsobj4:		equ	v_objspace+object_size*11	; object variable space for the invi
 
 v_splash:		equ	v_objspace+object_size*12	; object variable space for the water splash ($40 bytes)
 v_sonicbubbles:		equ	v_objspace+object_size*13	; object variable space for the bubbles that come out of Sonic's mouth/drown countdown ($40 bytes)
-v_watersurface1:	equ	v_objspace+object_size*30	; object variable space for the water surface #1 ($40 bytes)
-v_watersurface2:	equ	v_objspace+object_size*31	; object variable space for the water surface #1 ($40 bytes)
 
 v_endcard:		equ	v_objspace+object_size*23	; object variable space for the level results card ($1C0 bytes)
 v_endcardsonic:		equ	v_endcard+object_size*0		; object variable space for the level results card "SONIC HAS" text ($40 bytes)
@@ -336,8 +357,10 @@ v_palette_fading_line_3:ds.b $20
 v_palette_fading_line_4:ds.b $20
 v_palette_fading_end:
 
-v_objstate:		ds.b	$C0				; object state list
-v_objstate_end:
+v_regbuffer:		ds.b	$40				; stores registers d0-a7 during an error event
+v_spbuffer:		ds.l	1				; stores most recent sp address
+v_errortype:		ds.b	1				; error type
+			ds.b	$C0-$45				; unused ($7B bytes)
 
 v_systemstack_end:	ds.b	$140				; system stack end (items get added backwards)
 v_systemstack:							; system stack start
@@ -381,7 +404,7 @@ v_timemin:		equ	v_time+1			; time - minutes
 v_timesec:		equ	v_time+2			; time - seconds
 v_timecent:		equ	v_time+3			; time - centiseconds
 v_score:		ds.l	1				; score
-			ds.b	2				; unused
+v_ssframe:	ds.w 1		; Super Sonic ring-drain frame counter
 v_shield:		ds.b	1				; shield status (00 = no; 01 = yes)
 v_invinc:		ds.b	1				; invincibility status (00 = no; 01 = yes)
 v_shoes:		ds.b	1				; speed shoes status (00 = no; 01 = yes)
@@ -413,7 +436,11 @@ v_oscillate:		ds.w	1				; oscillation bitfield
 v_timingandscreenvariables:
 v_timingvariables:
 			ds.b	$40				; values which oscillate - for swinging platforms, et al
-			ds.b	$20				; unused
+			ds.b	$1C				; unused
+v_supersonic:	ds.b 1	; Super Sonic
+v_supersonic_palstate:	ds.b 1	; Super Sonic palette state (0 = off; 1 = fading in; -1 = Super; 2 = fading out)
+v_supersonic_paltimer:	ds.b 1	; Super Sonic palette frame timer
+v_supersonic_palframe:	ds.b 1	; Super Sonic palette cycle frame index
 v_ani0_time:		ds.b	1				; synchronised sprite animation 0 - time until next frame (used for synchronised animations)
 v_ani0_frame:		ds.b	1				; synchronised sprite animation 0 - current frame
 v_ani1_time:		ds.b	1				; synchronised sprite animation 1 - time until next frame
@@ -448,10 +475,14 @@ v_bg3_scroll_flags_dup:	ds.w	1
 			ds.b	$48				; unused
 v_timingandscreenvariables_end:
 
-v_levseldelay:		ds.w	1				; level select - time until change when up/down is held
-v_levselitem:		ds.w	1				; level select - item selected
-v_levselsound:		ds.w	1				; level select - sound selected
-			ds.b	$3A				; unused
+v_levseldelay:		ds.w	1		; level select - time until change when up/down is held
+v_levselitem:		ds.w	1		; level select - item selected
+v_levselsound:		ds.w	1		; level select - sound selected
+v_levselzone:		ds.w	1		; currently highlighted zone/item
+v_cheatcount1:		ds.w	1		; level select - correct cheat entries so far (cheat 1)
+v_cheatcount2:		ds.w	1		; level select - correct cheat entries so far (cheat 2)
+v_menuanimtimer:	ds.w	1		; menu background animation timer
+			ds.b	$32		; unused
 	if Revision=0
 v_scorecopy:		ds.l	1				; score, duplicate (REV00 only)
 	else
@@ -514,14 +545,5 @@ v_ss_rotationmatrix:	ds.b	2*2*ss_matrixsize*ss_matrixsize	; rotated X/Y sprite c
 v_ss_scroll_bubbles:	ds.b	$28				; buffer to store scroll positions for SS background bubbles
 v_ss_scroll_clouds:	ds.b	$1C				; buffer to store scroll positions for SS background clouds
 	dephase
-
-
-; Error handler
-	phase	v_objstate
-v_regbuffer:		ds.b	$40				; stores registers d0-a7 during an error event
-v_spbuffer:		ds.l	1				; stores most recent sp address
-v_errortype:		ds.b	1				; error type
-	dephase
-
 
 	!org 0

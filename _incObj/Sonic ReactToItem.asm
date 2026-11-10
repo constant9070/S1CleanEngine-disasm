@@ -11,7 +11,7 @@
 ; ---------------------------------------------------------------------------
 
 ReactToItem:
-		nop						; useless nop (probably so an rts could easily be inserted here)
+		jsr	(Touch_Rings).l				; allow Sonic to collect S3K Rings Manager rings
 		move.w	obX(a0),d2				; load Sonic's x-axis position
 		move.w	obY(a0),d3				; load Sonic's y-axis position
 		subq.w	#sonic_react_width,d2			; d2 = X-position of Sonic's left edge
@@ -377,6 +377,8 @@ React_ChkHurt:
 HurtSonic:
 		tst.b	(v_shield).w				; does Sonic have a shield?
 		bne.s	.bounceSonicAway			; if yes, branch
+		tst.b	(v_shieldtype).w				; does Sonic have a shield? (check #2)
+		bne.s	.bounceSonicAway			; if yes, branch
 		tst.w	(v_rings).w				; does Sonic have any rings?
 		beq.w	.hitWithoutRings			; if not, branch to kill Sonic
 
@@ -389,6 +391,7 @@ HurtSonic:
 	; .hasshield:
 	.bounceSonicAway:
 		move.b	#0,(v_shield).w				; remove a potential shield
+		move.b	#0,(v_shieldtype).w				; remove another potential shield
 		move.b	#4,obRoutine(a0)			; set Sonic to "Sonic_Hurt" routine
 		bsr.w	Sonic_ResetOnFloor			; reset airborne state
 		bset	#1,obStatus(a0)				; force airborne flag again
@@ -466,12 +469,7 @@ KillSonic:
 		move.w	#0,obVelX(a0)				; stop horizontal movement
 		move.w	#0,obInertia(a0)			; stop ground movement
 
-	if FixBugs=0
-		; Leftover line from the prototype, where objoff_38 was used to respawn Sonic at his last Y-position,
-		; which causes sticktoconvex to get overwritten with the high byte of Sonic's Y-position.
-		; Sonic doesn't react to solids when he dies, but escaping death through debug mode would cause problems.
-		move.w	obY(a0),objoff_38(a0)			; (unused) backup Y-position before dying
-	endif
+		move.w	obY(a0),objoff_38(a0)			; remember Sonic's Y position at time of death
 
 		move.b	#id_Death,obAnim(a0)			; set Sonic to use death animation
 		bset	#7,obGfx(a0)				; set Sonic to high sprite priority state

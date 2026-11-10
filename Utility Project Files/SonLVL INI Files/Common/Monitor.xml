@@ -45,6 +45,18 @@
       <ArtFile filename="../../artkosm/Monitors.kosm" />
       <MapFile type="ASM" filename="../../_maps/Monitor.asm" frame="11" startpal="0" />
     </ImageFromMappings>
+    <ImageFromMappings id="fshield">
+      <ArtFile filename="../../artkosm/Monitors.kosm" />
+      <MapFile type="ASM" filename="../../_maps/Monitor.asm" frame="12" startpal="0" />
+    </ImageFromMappings>
+    <ImageFromMappings id="lshield">
+      <ArtFile filename="../../artkosm/Monitors.kosm" />
+      <MapFile type="ASM" filename="../../_maps/Monitor.asm" frame="13" startpal="0" />
+    </ImageFromMappings>
+    <ImageFromMappings id="bshield">
+      <ArtFile filename="../../artkosm/Monitors.kosm" />
+      <MapFile type="ASM" filename="../../_maps/Monitor.asm" frame="14" startpal="0" />
+    </ImageFromMappings>
   </Images>
   <Subtypes>
     <Subtype id="00" name="Static" image="static" />
@@ -57,6 +69,9 @@
     <Subtype id="07" name="S" image="s" />
     <Subtype id="08" name="Goggles" image="goggles" />
     <Subtype id="09" name="Broken" image="broken" />
+    <Subtype id="A" name="Fire Shield" image="fshield" />
+    <Subtype id="B" name="Lightning Shield" image="lshield" />
+    <Subtype id="C" name="Bubble Shield" image="bshield" />
   </Subtypes>
   <Properties>
     <BitsProperty name="Contents" type="MonitorType" startbit="0" length="4" />
@@ -73,6 +88,9 @@
       <EnumMember name="S" />
       <EnumMember name="Goggles" />
       <EnumMember name="Broken" />
+      <EnumMember name="Fire Shield" />
+      <EnumMember name="Lightning Shield" />
+      <EnumMember name="Bubble Shield" />
     </Enum>
   </Enums>
 </ObjDef>

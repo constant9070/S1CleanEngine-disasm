@@ -25,7 +25,11 @@ Mon_Main:	; Routine 0
 
 		; If you have replaced the SBZ2 object data with its fixed version,
 		; this fix is not necessary.
+  if ElementalShields
+		cmpi.b	#$C,obSubtype(a0)		; is monitor subtype valid? i.e. no higher than goggles monitor (ID $C)
+  else
 		cmpi.b	#8,obSubtype(a0)		; is monitor subtype valid? i.e. no higher than goggles monitor (ID 8)
+  endif
 		bls.s	.valid				; if yes, branch
 		move.b	#id_Invisibarrier,obID(a0)	; otherwise, convert this monitor to an invisible solid barrier
 		jmp	(Invisibarrier).l		; execute barrier logic
@@ -41,15 +45,9 @@ Mon_Main:	; Routine 0
 		move.b	#3,obPriority(a0)		; set sprite priority to 3
 		move.b	#30/2,obActWid(a0)		; set render width
 
-		lea	(v_objstate).w,a2		; get object respawn table
-		moveq	#0,d0				; clear d0
-		move.b	obRespawnNo(a0),d0		; get monitor's respawn table index number
-	if FixBugs=0
-		; This has been relocated into the RememberState fix below
-		bclr	#7,2(a2,d0.w)			; immediately clear the respawn block flag (...why?)
-	endif
-		btst	#0,2(a2,d0.w)			; has monitor already been broken?
-		beq.s	.notbroken			; if not, branch
+		respawn_entry.s	.notbroken
+		btst	#0,(a2)					; has monitor already been broken?
+		beq.s	.notbroken				; if not, branch
 
 		move.b	#8,obRoutine(a0)		; run "Mon_Display" routine
 		move.b	#$B,obFrame(a0)			; use broken monitor frame
@@ -170,15 +168,7 @@ Mon_Animate:	; Routine 6
 		bsr.w	AnimateSprite			; animate monitor
 
 Mon_Display:	; Routine 8
-	if FixBugs
 		bra.w	RememberState			; handle display, respawn table, and offscreen delete
-	else
-		; Objects shouldn't call DisplaySprite and DeleteObject in
-		; the same frame or else cause a null-pointer dereference.
-		bsr.w	DisplaySprite			; display monitor
-		out_of_range.w	DeleteObject		; check if monitor has gone offscreen and delete it if so
-		rts					; return
-	endif
 ; ===========================================================================
 
 Mon_BreakOpen:	; Routine 4 (set from ReactToItem)
@@ -202,10 +192,9 @@ Mon_Explode:
 
 ; .fail:
 Mon_RememberBroken:
-		lea	(v_objstate).w,a2		; get object respawn table
-		moveq	#0,d0				; clear d0
-		move.b	obRespawnNo(a0),d0		; get monitor's respawn table index number
-		bset	#0,2(a2,d0.w)			; remember that this monitor has been broken in respawn table
+		respawn_entry.s	.broken
+		bset	#0,(a2)
+.broken:
 
 		move.b	#9,obAnim(a0)			; set monitor animation to broken
 		bra.w	DisplaySprite			; keep displaying broken monitor
@@ -285,8 +274,11 @@ ExtraLife:
 ; ===========================================================================
 
 Pow_ChkShoes:
-		cmpi.b	#3,d0				; does monitor contain speed shoes?
-		bne.s	Pow_ChkShield			; if not, branch
+		cmpi.b	#3,d0					; does monitor contain speed shoes?
+		bne.s	Pow_ChkShield				; if not, branch
+
+		tst.b	(v_supersonic).w	; is Sonic Super? (add this)
+		bne.w	Pow_NoMusic		; if yes, skip (add this)
 
 		move.b	#1,(v_shoes).w			; set speed shoes flag (used for reverting when time ran out)
 		move.w	#20*60,(v_player+shoetime).w	; set time limit for speed shoes to 20 seconds
@@ -318,6 +310,7 @@ Pow_ChkShield:
 		cmpi.b	#4,d0				; does monitor contain a shield?
 		bne.s	Pow_ChkInvinc			; if not, branch
 
+		move.b	#0,(v_shieldtype).w				; remove another potential shield
 		move.b	#1,(v_shield).w			; give Sonic a shield
 		move.b	#id_ShieldItem,(v_shieldobj).w	; load shield object ($38)
 		move.w	#sfx_Shield,d0			; set shield sound effect
@@ -325,8 +318,11 @@ Pow_ChkShield:
 ; ===========================================================================
 
 Pow_ChkInvinc:
-		cmpi.b	#5,d0				; does monitor contain invincibility?
-		bne.s	Pow_ChkRings			; if not, branch
+		cmpi.b	#5,d0					; does monitor contain invincibility?
+		bne.s	Pow_ChkRings				; if not, branch
+
+		tst.b	(v_supersonic).w	; is Sonic Super? (add this)
+		bne.s	Pow_NoMusic		; if yes, skip (add this)
 
 		move.b	#1,(v_invinc).w			; make Sonic invincible
 		move.w	#20*60,(v_player+invtime).w	; set time limit for invincibility to 20 seconds
@@ -392,11 +388,48 @@ Pow_ChkS:
 
 Pow_ChkGoggles:
 ; Uncomment these lines to set up the goggles monitor to work with it
-	;	cmpi.b	#8,d0				; does monitor contain goggles?
-	;	bne.s	Pow_ChkEnd			; if not, branch
-	;	nop					; goggles do nothing by default
+		cmpi.b	#8,d0				; does monitor contain goggles?
+		bne.s	Pow_ChkFShield			; if not, branch
+		nop					; goggles do nothing by default
 ; ===========================================================================
 	
+
+Pow_ChkFShield:
+        cmpi.b    #$A,d0                ; does monitor contain a shield?
+        bne.s    Pow_ChkLShield            ; if not, branch
+
+        move.b    #1,(v_shield).w            ; give Sonic a shield
+        clr.b    (v_shieldtype).w        ; clear any shield types
+        bset    #Status_FireShield,(v_shieldtype).w        ; add the fire shield
+        move.b    #id_ShieldItem,(v_shieldobj).w    ; load shield object ($38)
+        move.w    #sfx_FireShield,d0            ; set shield sound effect
+        jmp    (QueueSound1).l            ; play it
+; ===========================================================================
+
+Pow_ChkLShield:
+        cmpi.b    #$B,d0                ; does monitor contain a shield?
+        bne.s    Pow_ChkBShield            ; if not, branch
+
+        move.b    #1,(v_shield).w            ; give Sonic a shield
+        clr.b    (v_shieldtype).w        ; clear any shield types
+        bset    #Status_LightningShield,(v_shieldtype).w        ; add the lightning shield
+        move.b    #id_ShieldItem,(v_shieldobj).w    ; load shield object ($38)
+        move.w    #sfx_ElectricShield,d0            ; set shield sound effect
+        jmp    (QueueSound1).l            ; play it
+; ===========================================================================
+
+Pow_ChkBShield:
+        cmpi.b    #$C,d0                ; does monitor contain a shield?
+        bne.s    Pow_ChkEnd            ; if not, branch
+
+        move.b    #1,(v_shield).w            ; give Sonic a shield
+        clr.b    (v_shieldtype).w        ; clear any shield types
+        bset    #Status_BubbleShield,(v_shieldtype).w        ; add the bubble shield
+        move.b    #id_ShieldItem,(v_shieldobj).w    ; load shield object ($38)
+      move.w    #sfx_BubbleShield,d0            ; set shield sound effect
+       jmp    (QueueSound1).l            ; play it
+; ===========================================================================
+
 Pow_ChkEnd:
 		rts					; subtype isn't any valid monitor ID
 ; ===========================================================================

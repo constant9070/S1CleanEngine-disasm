@@ -67,6 +67,16 @@ SH_MoveCameraRight:
 		blo.s	.moveRight				; if yes, branch
 		move.w	#16,d0					; set to 16 if greater
 
+  if WidescreenType
+	; SH_Ahead16:
+	.moveRight:
+		add.w	(v_screenposx).w,d0			; add current camera position to Sonic's X-offset
+
+		bsr.w	SH_GetRightLimit			; d1 = right limit, pulled in by ExtraWidth
+		cmp.w	d1,d0					; is camera past the right level boundary?
+		blt.s	SH_SetScreen				; if not, branch
+		move.w	d1,d0					; limit camera X-position to right boundary
+  else
 	; SH_Ahead16:
 	.moveRight:
 		add.w	(v_screenposx).w,d0			; add current camera position to Sonic's X-offset
@@ -74,6 +84,7 @@ SH_MoveCameraRight:
 		cmp.w	(v_limitright2).w,d0			; is camera past the right level boundary?
 		blt.s	SH_SetScreen				; if not, branch
 		move.w	(v_limitright2).w,d0			; limit camera X-position to right boundary
+  endif
 
 ; loc_65E4:
 SH_SetScreen:
@@ -95,6 +106,18 @@ SH_MoveCameraLeft:
 		move.w	#-16,d0					; set to -16 if lower
 	endif
 
+  if WidescreenType
+	; SH_Behind16:
+	.moveLeft:
+		add.w	(v_screenposx).w,d0			; add current camera position to Sonic's X-offset
+
+		bsr.w	SH_GetLeftLimit				; d1 = left limit, never below ExtraWidth
+		cmp.w	d1,d0					; is camera before the left level boundary?
+		bgt.s	SH_SetScreen				; if not, branch
+		move.w	d1,d0					; limit camera X-position to left boundary
+		bra.s	SH_SetScreen				; if not, branch
+; End of function ScrollHoriz
+  else
 	; SH_Behind16:
 	.moveLeft:
 		add.w	(v_screenposx).w,d0			; add current camera position to Sonic's X-offset
@@ -104,6 +127,38 @@ SH_MoveCameraLeft:
 		move.w	(v_limitleft2).w,d0			; limit camera X-position to left boundary
 		bra.s	SH_SetScreen				; set new position and calculate scroll difference
 ; End of function ScrollHoriz
+  endif
+
+; ---------------------------------------------------------------------------
+; Widescreen camera limits
+; The wide view shows ExtraWidth pixels either side of the normal screen, so the
+; camera is kept that far from the real level edges. The limit variables
+; themselves are left alone, because Sonic and objects use them too.
+; Locked arenas (boss fights) have limits too close together for this, so they
+; fall back to the plain limits.
+; output:
+;	d1 = effective limit
+; ---------------------------------------------------------------------------
+
+SH_GetLeftLimit:
+		move.w	(v_limitleft2).w,d1			; get left level boundary
+  if WidescreenType
+		cmpi.w	#(ExtraWidth+16)/2,d1				; is it already far enough from the edge?
+		bhs.s	.return					; if yes, branch
+		move.w	#(ExtraWidth+16)/2,d1				; keep the wide view's left edge inside the level
+  endif
+	.return:
+		rts
+; End of function SH_GetLeftLimit
+
+SH_GetRightLimit:
+		move.w	(v_limitright2).w,d1			; get right level boundary
+		cmp.w	(v_limitleft2).w,d1			; would that cross the left boundary? (locked arena)
+		bge.s	.return					; if not, branch
+		move.w	(v_limitright2).w,d1			; use the plain right boundary instead
+	.return:
+		rts
+; End of function SH_GetRightLimit
 ; ===========================================================================
 
 ; Dead, unused code.
@@ -135,6 +190,10 @@ ScrollVertical:
 
 		move.w	(v_player+obY).w,d0			; get Sonic's current Y-position
 		sub.w	(v_screenposy).w,d0			; d0 = Sonic's distance from top of screen
+		tst.w	(v_limittop2).w				; is vertical wrapping enabled?
+		bpl.s	.noWrap					; if not, branch
+		andi.w	#$7FF,d0				; wrap Y position
+	.noWrap:
 
 		btst	#2,(v_player+obStatus).w		; is Sonic rolling?
 		beq.s	.checkInAir				; if not, branch
@@ -241,10 +300,8 @@ SV_TopBoundary:
 		bgt.s	SV_SetScreen				; if not, branch
 		cmpi.w	#-$100,d1				; does level wrap vertically? (top boundary set to -$100)
 		bgt.s	.noWrap					; if not, branch
-		andi.w	#$7FF,d1				; wrap expected new camera Y-position
-		andi.w	#$7FF,(v_player+obY).w			; wrap Sonic vertically
-		andi.w	#$7FF,(v_screenposy).w			; wrap camera Y-position
-		andi.w	#$3FF,(v_bgscreenposy).w		; wrap background Y-position
+		andi.w	#$7FF,d1				; wrap Y position
+		bset	#0,(v_fg_scroll_flags).w		; force a row redraw at the top to avoid visual glitches from wrapping
 		bra.s	SV_SetScreen				; set updated screen position
 ; ---------------------------------------------------------------------------
 
@@ -267,9 +324,8 @@ SV_BottomBoundary:
 		blt.s	SV_SetScreen				; if not, branch
 		subi.w	#$7FF+1,d1				; does level wrap vertically? (bottom boundary set to $800)
 		bcs.s	.noWrap					; if not, branch
-		andi.w	#$7FF,(v_player+obY).w			; wrap Sonic vertically
 		subi.w	#$7FF+1,(v_screenposy).w		; move camera back to top +1
-		andi.w	#$3FF,(v_bgscreenposy).w		; wrap background Y-position
+		bset	#1,(v_fg_scroll_flags).w		; force a row redraw at the bottom to avoid visual glitches from wrapping
 		bra.s	SV_SetScreen				; set updated screen position
 
 	; loc_6720:

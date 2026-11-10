@@ -54,6 +54,7 @@ plcid_TitleForeground:	plcptr	PLC_TitleForeground
 plcid_TitleBackground:	plcptr	PLC_TitleBackground
 plcid_Continue:		plcptr	PLC_Continue
 plcid_Credits:		plcptr	PLC_Credits
+plcid_Stars:		plcptr	PLC_Stars
 
 ; ---------------------------------------------------------------------------
 ; Pattern load cues - standard block 1
@@ -259,3 +260,10 @@ PLC_Continue_end:
 PLC_Credits:	plcheader
 		plcm	KosM_CreditText,	ArtTile_Credits_Font
 PLC_Credits_end:
+
+; ---------------------------------------------------------------------------
+; Pattern load cues - invincibility stars
+; ---------------------------------------------------------------------------
+PLC_Stars:	plcheader
+		plcm	KosM_Stars, ArtTile_Invincibility
+PLC_Stars_end:

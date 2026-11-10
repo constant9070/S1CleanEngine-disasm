@@ -64,8 +64,8 @@ FadeIn_FromBlack:
 		dbf	d0,.fadeColors				; loop until all colors have been faded in more
 ; ---------------------------------------------------------------------------
 
-		cmpi.b	#id_LZ,(v_zone).w			; are we in Labyrinth Zone?
-		bne.s	.return					; if not, don't affect underwater palette buffer
+		tst.b	(f_water).w				; does this level have water? (set from WaterData)
+		beq.s	.return					; if not, don't run any water effects at all
 
 		moveq	#0,d0					; clear d0
 		lea	(v_palette_water).w,a0			; load active underwater palette buffer

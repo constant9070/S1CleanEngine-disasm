@@ -203,6 +203,8 @@ Drown_Countdown:; Routine $A
 		bhs.w	.return					; if yes, branch
 		btst	#6,(v_player+obStatus).w		; is Sonic underwater?
 		beq.w	.return					; if not, branch
+        btst    #Status_BubbleShield,(v_shieldtype).w        ; does Sonic have a Bubble Shield?
+        bne.w    .return                    ; if yes, branch
 
 		subq.w	#1,drown_numtime(a0)			; decrement timer until next "decrement seconds of air"
 		bpl.w	.checkSpawnExtraBubbles			; branch if time remains

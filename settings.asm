@@ -1,4 +1,6 @@
 
+	include "build_mode.asm"	; defines WidescreenSupport (written by build.lua)
+
 ;--------------------------------------------------------------------------------
 ;-                             Settings - Main                              -
 ;--------------------------------------------------------------------------------
@@ -49,11 +51,13 @@ ExtendedCamera = 1  ; Extend the camera! /j
 ;-                    Settings - Sonic Abilities                       -
 ;--------------------------------------------------------------------------------
 
+ElementalShields = 1 ;  Enable S3K's Elemental Shields (but disables AirDash, POSSIBLY BROKEN)
+
 PeelOut = 1  ; PeelOut, you know.
 
 SpinDash = 1  ; Spindash
 
-AirDash = 1  ; turn this on and you'll be able to dash in the air!
+AirDashSettings = 1  ; turn this on and you'll be able to dash in the air!
 
 AirRoll = 1  ; turn this on and you'll be able to dash in the air!
 

@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>nem to kosm</title>
+<style>
+:root {
+  --bg: #f2f1ec;
+  --fg: #1c1c1c;
+  --dim: #5f5f58;
+  --line: #a9a79c;
+  --box: #fbfaf6;
+  --link: #1f4f9a;
+  --bad: #9b1c1c;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1b1b19;
+    --fg: #dcdad2;
+    --dim: #8f8d84;
+    --line: #4a4943;
+    --box: #232321;
+    --link: #8fb4f0;
+    --bad: #e08080;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 16px;
+  background: var(--bg);
+  color: var(--fg);
+  font: 14px/1.45 Verdana, Tahoma, sans-serif;
+}
+main { max-width: 760px; margin: 0 auto; }
+p { margin: 6px 0; }
+.dim { color: var(--dim); }
+code, td.n, .mono { font-family: Consolas, "Courier New", monospace; font-size: 13px; }
+
+#drop {
+  border: 1px dashed var(--line);
+  background: var(--box);
+  padding: 18px 10px;
+  text-align: center;
+  margin: 12px 0;
+  cursor: pointer;
+}
+#drop.over { border-style: solid; }
+
+fieldset {
+  border: 1px solid var(--line);
+  margin: 0 0 12px;
+  padding: 8px 10px 10px;
+}
+legend { padding: 0 4px; }
+.opt { display: flex; gap: 8px; align-items: center; margin: 5px 0; flex-wrap: wrap; }
+.opt label { min-width: 150px; }
+input[type=number] { width: 70px; }
+input[type=text] { width: 120px; }
+input, select, button {
+  font: inherit;
+  color: var(--fg);
+  background: var(--box);
+  border: 1px solid var(--line);
+  padding: 2px 6px;
+}
+button { padding: 3px 10px; cursor: pointer; }
+button:disabled { color: var(--dim); cursor: default; }
+
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; background: var(--box); }
+th, td { border: 1px solid var(--line); padding: 4px 8px; text-align: left; vertical-align: top; }
+th { background: var(--bg); font-weight: bold; }
+td.n { text-align: right; white-space: nowrap; }
+td.err { color: var(--bad); }
+.bar { margin: 10px 0; display: flex; gap: 8px; flex-wrap: wrap; }
+</style>
+<body>
+<main>
+
+<div id="drop">Drop Nemesis files here, or click to pick them</div>
+<input type="file" id="pick" multiple hidden>
+
+<fieldset>
+  <legend>Options</legend>
+  <div class="opt">
+    <label for="comp">Input format</label>
+    <select id="comp">
+      <option value="auto">Auto (.nem = Nemesis, anything else raw tiles)</option>
+      <option value="nem">Nemesis</option>
+      <option value="raw">Uncompressed tiles</option>
+    </select>
+  </div>
+  <div class="opt">
+    <label for="suf">Output name suffix</label>
+    <input type="text" id="suf" value="">
+  </div>
+</fieldset>
+
+<div class="tablewrap">
+<table id="res" hidden>
+  <thead><tr><th>File</th><th>In</th><th>Tiles</th><th>Out</th><th>Notes</th><th></th></tr></thead>
+  <tbody></tbody>
+</table>
+</div>
+
+<div class="bar">
+  <button id="zip" disabled>Save all as .zip</button>
+  <button id="clear" disabled>Clear</button>
+</div>
+
+</main>
+
+<script>
+// ---- core ----
+
+function nemDecode(d) {
+  if (d.length < 3) throw new Error("file too short for a Nemesis header");
+  var hdr = (d[0] << 8) | d[1];
+  var xor = (hdr & 0x8000) !== 0;
+  var tiles = hdr & 0x7fff;
+  var p = 2, nib = 0;
+  var tbl = new Int32Array(16 * 256).fill(-1);
+
+  for (;;) {
+    if (p >= d.length) throw new Error("code table never ends");
+    var b = d[p++];
+    if (b === 0xff) break;
+    if (b & 0x80) { nib = b & 15; continue; }
+    if (p >= d.length) throw new Error("code table cut off");
+    var code = d[p++];
+    tbl[((b & 15) << 8) | code] = ((((b >> 4) & 7) + 1) << 4) | nib;
+  }
+
+  var bitpos = p * 8, nbits = d.length * 8;
+  function bit() {
+    if (bitpos >= nbits) throw new Error("ran out of data");
+    var v = (d[bitpos >> 3] >> (7 - (bitpos & 7))) & 1;
+    bitpos++;
+    return v;
+  }
+
+  var total = tiles * 8;
+  var out = new Uint8Array(tiles * 32);
+  var o = 0, row = 0, cnt = 0, prev = 0, rows = 0;
+  while (rows < total) {
+    var len = 0, val = 0, run = 0, nb = 0;
+    for (;;) {
+      val = (val << 1) | bit();
+      len++;
+      if (len === 6 && val === 0x3f) {
+        var v = 0;
+        for (var j = 0; j < 7; j++) v = (v << 1) | bit();
+        run = ((v >> 4) & 7) + 1;
+        nb = v & 15;
+        break;
+      }
+      if (len > 8) throw new Error("bad code in the bit stream");
+      var t = tbl[(len << 8) | val];
+      if (t >= 0) { run = t >> 4; nb = t & 15; break; }
+    }
+    for (var r = 0; r < run && rows < total; r++) {
+      row = ((row << 4) | nb) >>> 0;
+      if (++cnt === 8) {
+        if (xor) row = (row ^ prev) >>> 0;
+        prev = row;
+        out[o++] = row >>> 24;
+        out[o++] = (row >>> 16) & 255;
+        out[o++] = (row >>> 8) & 255;
+        out[o++] = row & 255;
+        row = 0; cnt = 0; rows++;
+      }
+    }
+  }
+  return { data: out, xor: xor, tiles: tiles };
+}
+
+// returns the decoded bytes and where the stream ended
+function kosDecodeAt(d, start) {
+  var out = [];
+  var p = start + 2, bits = 16;
+  if (start + 2 > d.length) throw new Error("module starts past the end of the file");
+  var desc = d[start] | (d[start + 1] << 8);
+  function bit() {
+    var x = desc & 1;
+    desc >>= 1;
+    bits--;
+    if (bits === 0 && p + 1 < d.length) {
+      desc = d[p] | (d[p + 1] << 8);
+      p += 2;
+      bits = 16;
+    }
+    return x;
+  }
+  function rd() {
+    if (p >= d.length) throw new Error("ran off the end of the data");
+    return d[p++];
+  }
+  function copy(off, cnt) {
+    for (var i = 0; i < cnt; i++) {
+      var idx = out.length + off;
+      if (idx < 0) throw new Error("bad copy offset");
+      out.push(out[idx]);
+    }
+  }
+  for (;;) {
+    if (bit()) {
+      out.push(rd());
+    } else if (bit()) {
+      var lo = rd(), hi = rd();
+      var off = -0x2000 + (((hi & 0xf8) << 5) | lo);
+      var cnt = hi & 7;
+      if (cnt) {
+        cnt += 2;
+      } else {
+        var c = rd();
+        if (c === 0) break;
+        if (c === 1) continue;
+        cnt = c + 1;
+      }
+      copy(off, cnt);
+    } else {
+      var n = (bit() << 1) | bit();
+      copy(rd() - 0x100, n + 2);
+    }
+  }
+  return { data: new Uint8Array(out), end: p };
+}
+
+// KosM: word with the total size, then Kosinski modules of $1000 bytes each,
+// every module after the first starting on a $10 boundary counted from the first module.
+function kosmEncode(data) {
+  if (!data.length) throw new Error("no art in this file");
+  if (data.length > 0xffff) throw new Error("too big for the KosM size word");
+  var out = [data.length >> 8, data.length & 255];
+  for (var s = 0; s < data.length; s += 0x1000) {
+    var mod = kosEncode(data.subarray(s, Math.min(s + 0x1000, data.length)));
+    for (var i = 0; i < mod.length; i++) out.push(mod[i]);
+    if (s + 0x1000 < data.length) {
+      while ((out.length - 2) % 16) out.push(0);
+    }
+  }
+  if (out.length & 1) out.push(0);
+  return new Uint8Array(out);
+}
+
+function kosmDecode(d) {
+  var total = (d[0] << 8) | d[1];
+  var out = new Uint8Array(total);
+  var o = 0, p = 2;
+  while (o < total) {
+    var m = kosDecodeAt(d, p);
+    if (o + m.data.length > total) throw new Error("modules are bigger than the size word says");
+    out.set(m.data, o);
+    o += m.data.length;
+    p = 2 + (((m.end - 2) + 15) & ~15);
+  }
+  return out;
+}
+
+// Kosinski compressor. Optimal parse over hash-chain matches, window 8192, max run 256.
+function kosEncode(src) {
+  var n = src.length;
+  var head = new Int32Array(65536).fill(-1);
+  var prev = new Int32Array(Math.max(n, 1)).fill(-1);
+  var lenN = new Uint16Array(n + 1), offN = new Uint16Array(n + 1);
+  var lenF = new Uint16Array(n + 1), offF = new Uint16Array(n + 1);
+  var i, j, k, l;
+
+  for (i = 0; i + 1 < n; i++) {
+    var h = src[i] | (src[i + 1] << 8);
+    var maxl = Math.min(256, n - i);
+    var bl = 0, bo = 0, nl = 0, no = 0, steps = 0;
+    j = head[h];
+    while (j >= 0 && i - j <= 8192 && steps < 400) {
+      var d = i - j;
+      k = 0;
+      while (k < maxl && src[j + k] === src[i + k]) k++;
+      if (k > bl) { bl = k; bo = d; }
+      if (d <= 256 && k > nl) { nl = k; no = d; }
+      steps++;
+      j = prev[j];
+    }
+    lenF[i] = bl; offF[i] = bo; lenN[i] = nl; offN[i] = no;
+    prev[i] = head[h];
+    head[h] = i;
+  }
+
+  function bitsFor(len, off) {
+    if (len <= 5 && off <= 256) return 12;
+    if (len >= 3 && len <= 9) return 18;
+    if (len >= 10) return 26;
+    return Infinity;
+  }
+
+  var cost = new Float64Array(n + 1).fill(Infinity);
+  var from = new Int32Array(n + 1), mlen = new Uint16Array(n + 1), moff = new Uint16Array(n + 1);
+  cost[0] = 0;
+  for (i = 0; i < n; i++) {
+    var c = cost[i];
+    if (c + 9 < cost[i + 1]) { cost[i + 1] = c + 9; from[i + 1] = i; mlen[i + 1] = 0; }
+    for (l = 2; l <= lenN[i]; l++) {
+      var b1 = bitsFor(l, offN[i]);
+      if (c + b1 < cost[i + l]) { cost[i + l] = c + b1; from[i + l] = i; mlen[i + l] = l; moff[i + l] = offN[i]; }
+    }
+    for (l = 3; l <= lenF[i]; l++) {
+      var b2 = bitsFor(l, offF[i]);
+      if (c + b2 < cost[i + l]) { cost[i + l] = c + b2; from[i + l] = i; mlen[i + l] = l; moff[i + l] = offF[i]; }
+    }
+  }
+
+  var ops = [];
+  for (i = n; i > 0; i = from[i]) ops.push(i);
+  ops.reverse();
+
+  var out = [];
+  var descPos = 0, desc = 0, nbits = 0;
+  out.push(0, 0);
+  function bit(v) {
+    desc |= v << nbits;
+    nbits++;
+    if (nbits === 16) {
+      out[descPos] = desc & 255;
+      out[descPos + 1] = desc >> 8;
+      descPos = out.length;
+      out.push(0, 0);
+      desc = 0;
+      nbits = 0;
+    }
+  }
+
+  ops.forEach(function (end) {
+    var len = mlen[end], off = moff[end];
+    if (len === 0) {
+      bit(1);
+      out.push(src[end - 1]);
+    } else if (len <= 5 && off <= 256) {
+      bit(0); bit(0);
+      bit((len - 2) >> 1); bit((len - 2) & 1);
+      out.push((256 - off) & 255);
+    } else {
+      bit(0); bit(1);
+      var v = 0x2000 - off;
+      var lo = v & 255, hi = (v >> 8) << 3;
+      if (len <= 9) {
+        out.push(lo, hi | (len - 2));
+      } else {
+        out.push(lo, hi, len - 1);
+      }
+    }
+  });
+
+  bit(0); bit(1);
+  out.push(0x00, 0xf0, 0x00);
+  out[descPos] = desc & 255;
+  out[descPos + 1] = desc >> 8;
+  return new Uint8Array(out);
+}
+
+
+var crcTable = (function () {
+  var t = new Uint32Array(256);
+  for (var n = 0; n < 256; n++) {
+    var c = n;
+    for (var k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+
+function crc32(buf) {
+  var c = 0xffffffff;
+  for (var i = 0; i < buf.length; i++) c = crcTable[(c ^ buf[i]) & 255] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+// store-only zip, enough for a handful of layouts
+function makeZip(files) {
+  var enc = new TextEncoder();
+  var parts = [], central = [], offset = 0;
+  files.forEach(function (f) {
+    var name = enc.encode(f.name);
+    var crc = crc32(f.data), size = f.data.length;
+    var lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true);
+    lh.setUint16(4, 20, true);
+    lh.setUint16(6, 0x0800, true);
+    lh.setUint16(8, 0, true);
+    lh.setUint16(10, 0, true);
+    lh.setUint16(12, 0x21, true);
+    lh.setUint32(14, crc, true);
+    lh.setUint32(18, size, true);
+    lh.setUint32(22, size, true);
+    lh.setUint16(26, name.length, true);
+    lh.setUint16(28, 0, true);
+    parts.push(new Uint8Array(lh.buffer), name, f.data);
+
+    var ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true);
+    ch.setUint16(4, 20, true);
+    ch.setUint16(6, 20, true);
+    ch.setUint16(8, 0x0800, true);
+    ch.setUint16(10, 0, true);
+    ch.setUint16(12, 0, true);
+    ch.setUint16(14, 0x21, true);
+    ch.setUint32(16, crc, true);
+    ch.setUint32(20, size, true);
+    ch.setUint32(24, size, true);
+    ch.setUint16(28, name.length, true);
+    ch.setUint32(42, offset, true);
+    central.push(new Uint8Array(ch.buffer), name);
+    offset += 30 + name.length + size;
+  });
+  var csize = 0;
+  central.forEach(function (c) { csize += c.length; });
+  var end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true);
+  end.setUint16(8, files.length, true);
+  end.setUint16(10, files.length, true);
+  end.setUint32(12, csize, true);
+  end.setUint32(16, offset, true);
+  return new Blob(parts.concat(central, [new Uint8Array(end.buffer)]), { type: "application/zip" });
+}
+// ---- end core ----
+
+var loaded = [];
+var results = [];
+
+var el = function (id) { return document.getElementById(id); };
+var tbody = el("res").querySelector("tbody");
+
+function outName(name, suffix) {
+  var dot = name.lastIndexOf(".");
+  var base = dot > 0 ? name.slice(0, dot) : name;
+  return base + suffix + ".kosm";
+}
+
+function sameBytes(a, b) {
+  if (a.length !== b.length) return false;
+  for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+function convertAll() {
+  var suffix = el("suf").value;
+  var mode = el("comp").value;
+  var used = {};
+  results = [];
+
+  loaded.forEach(function (f) {
+    var row = { file: f.name, inSize: f.bytes.length, notes: [], err: null };
+    try {
+      var art;
+      var isNem = mode === "nem" || (mode === "auto" && /\.nem$/i.test(f.name));
+      if (isNem) {
+        var n = nemDecode(f.bytes);
+        art = n.data;
+        if (n.xor) row.notes.push("XOR mode");
+        row.notes.push(art.length + " bytes unpacked");
+      } else {
+        art = f.bytes;
+        if (art.length % 32) row.notes.push("size is not a multiple of 32");
+      }
+      row.tiles = Math.floor(art.length / 32);
+      var packed = kosmEncode(art);
+      if (!sameBytes(kosmDecode(packed), art)) throw new Error("compression self-check failed");
+      row.data = packed;
+      var name = outName(f.name, suffix);
+      if (used[name]) {
+        var k = 2;
+        while (used[name.replace(/(\.[^.]*)?$/, "_" + k + "$1")]) k++;
+        name = name.replace(/(\.[^.]*)?$/, "_" + k + "$1");
+      }
+      used[name] = true;
+      row.outName = name;
+    } catch (e) {
+      row.err = e.message;
+    }
+    results.push(row);
+  });
+  draw();
+}
+
+function draw() {
+  el("res").hidden = results.length === 0;
+  tbody.innerHTML = "";
+  results.forEach(function (r, i) {
+    var tr = document.createElement("tr");
+    function td(text, cls) {
+      var c = document.createElement("td");
+      c.textContent = text;
+      if (cls) c.className = cls;
+      tr.appendChild(c);
+      return c;
+    }
+    td(r.file);
+    td(r.inSize + " ($" + r.inSize.toString(16).toUpperCase() + ")", "n");
+    if (r.err) {
+      td("-", "n");
+      td("-", "n");
+      td(r.err, "err");
+      td("");
+    } else {
+      td(String(r.tiles), "n");
+      td(r.data.length + " ($" + r.data.length.toString(16).toUpperCase() + ")", "n");
+      td(r.notes.join("; "));
+      var c = document.createElement("td");
+      var b = document.createElement("button");
+      b.textContent = "Save";
+      b.onclick = function () { saveOne(i); };
+      c.appendChild(b);
+      tr.appendChild(c);
+    }
+    tbody.appendChild(tr);
+  });
+  var good = results.some(function (r) { return !r.err; });
+  el("zip").disabled = !good;
+  el("clear").disabled = results.length === 0;
+}
+
+function download(blob, name) {
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+}
+
+function saveOne(i) {
+  var r = results[i];
+  download(new Blob([r.data], { type: "application/octet-stream" }), r.outName);
+}
+
+el("zip").onclick = function () {
+  var files = results.filter(function (r) { return !r.err; })
+    .map(function (r) { return { name: r.outName, data: r.data }; });
+  if (files.length) download(makeZip(files), "art_kosm.zip");
+};
+
+el("clear").onclick = function () {
+  loaded = [];
+  convertAll();
+};
+
+function addFiles(list) {
+  var pending = list.length;
+  if (!pending) return;
+  Array.prototype.forEach.call(list, function (f) {
+    var fr = new FileReader();
+    fr.onload = function () {
+      loaded.push({ name: f.name, bytes: new Uint8Array(fr.result) });
+      if (--pending === 0) convertAll();
+    };
+    fr.onerror = function () {
+      if (--pending === 0) convertAll();
+    };
+    fr.readAsArrayBuffer(f);
+  });
+}
+
+var drop = el("drop");
+drop.onclick = function () { el("pick").click(); };
+el("pick").onchange = function (e) { addFiles(e.target.files); e.target.value = ""; };
+["dragenter", "dragover"].forEach(function (t) {
+  drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.add("over"); });
+});
+["dragleave", "drop"].forEach(function (t) {
+  drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.remove("over"); });
+});
+drop.addEventListener("drop", function (e) { addFiles(e.dataTransfer.files); });
+
+["comp", "suf"].forEach(function (id) {
+  el(id).addEventListener("input", convertAll);
+  el(id).addEventListener("change", convertAll);
+});
+</script>
+</body>
+</html>

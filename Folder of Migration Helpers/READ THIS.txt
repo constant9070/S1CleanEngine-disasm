@@ -1,0 +1,15 @@
+
+READ THIS TO KNOW WHAT TO USE
+
+For Layout, chunks and Blocks... (1/2)
+Go to the "For Level Layout and Blocks" folder and open LevelConverter and put your old s1 SonLVL.ini file in and select Sonic 2 as the output, then the rest is up to you to find out, rename the Layout, Chunks and Blocks from .bin to .kos, but uncompress the blocks and chunks before using them.
+
+For Layout, chunks and Blocks... (2/2)
+After converting your Level Layout to Sonic 2 format, open "USE THIS TO WIDEN YOUR OLD OR CONVERTED LAYOUT.html", then drop all of the Level Layouts that you got after converting to Sonic 2 format into the drop-down box, then look at the output and click save.
+
+For all of the Nemesis Art...
+Open "USE THIS TO CONVERT NEMESIS ART TO KOSINKSI MODULED ART.html", then drop all of the Nemesis compressed art into the drop-down box, then look at the output and click save.
+
+For Rings and Objects...
+Go to this link to convert those old combined ring and object files to two separate files:
+https://info.sonicretro.org/SCHG_How-to:Port_S3K_Rings_Manager_into_Sonic_1

@@ -6,10 +6,14 @@ ResumeMusic:
 		cmpi.w	#12,(v_air).w				; more than 12 seconds of air left?
 		bhi.s	.replenishAir				; if yes, only replenish air without changing music 
 
+		tst.b	(v_supersonic).w	; is Sonic Super?		<-- add
+		beq.s	.notsuper		; if not, branch		<-- add
+		move.w	#bgm_SuperSonic,d0	; play Super Sonic music	<-- add
+		bra.s	.playSelected		;	<-- add
+.notsuper:					;	<-- add
 		tst.b	(v_invinc).w				; is Sonic invincible?
 		beq.s	.notInvincible				; if not, branch
 		move.w	#bgm_Invincible,d0			; resume invincibility music instead
-		bra.s	.playSelected				; play it
 ; ===========================================================================
 
 .notInvincible:

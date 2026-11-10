@@ -70,10 +70,10 @@ LoadTilesAsYouMove:
 
 		; Draw new tiles at the top
 		moveq	#-16,d4					; set X and Y positions to top left of screen
-		moveq	#-16,d5					; ''
+		moveq	#-(ExtraWidth+16),d5					; ''
 		bsr.w	Calc_VRAM_Pos				; get the plane position
 		moveq	#-16,d4					; set X and Y positions to top left of screen
-		moveq	#-16,d5					; ''
+		moveq	#-(ExtraWidth+16),d5					; ''
 		bsr.w	DrawBlocks_LR				; draw a horizontal line of blocks above the screen
 
 	; --- FG Bottom ---
@@ -85,10 +85,10 @@ LoadTilesAsYouMove:
 
 		; Draw new tiles at the bottom
 		move.w	#224,d4					; set X and Y positions to bottom left of screen
-		moveq	#-16,d5					; ''
+		moveq	#-(ExtraWidth+16),d5					; ''
 		bsr.w	Calc_VRAM_Pos				; get the plane position
 		move.w	#224,d4					; set X and Y positions to bottom left of screen
-		moveq	#-16,d5					; ''
+		moveq	#-(ExtraWidth+16),d5					; ''
 		bsr.w	DrawBlocks_LR				; draw a horizontal line of blocks below the screen
 
 	; --- FG Left ---
@@ -98,12 +98,13 @@ LoadTilesAsYouMove:
 		bclr	#2,(a2)					; clear left draw flag
 		beq.s	.checkRight				; if it wasn't set, branch
 
+
 		; Draw new tiles on the left
 		moveq	#-16,d4					; set X and Y positions to top left of screen
-		moveq	#-16,d5					; ''
+		moveq	#-(ExtraWidth+16),d5					; ''
 		bsr.w	Calc_VRAM_Pos				; get the plane position
 		moveq	#-16,d4					; set X and Y positions to top left of screen
-		moveq	#-16,d5					; ''
+		moveq	#-(ExtraWidth+16),d5					; ''
 		bsr.w	DrawBlocks_TB				; draw a vertical line of blocks to the left of the screen
 
 	; --- FG Right ---
@@ -115,10 +116,10 @@ LoadTilesAsYouMove:
 
 		; Draw new tiles on the right
 		moveq	#-16,d4					; set X and Y positions to top right of screen
-		move.w	#320,d5					; ''
+		move.w	#320+(((ExtraWidth))),d5					; ''
 		bsr.w	Calc_VRAM_Pos				; get the plane position
 		moveq	#-16,d4					; set X and Y positions to top right of screen
-		move.w	#320,d5					; ''
+		move.w	#320+(((ExtraWidth))),d5					; ''
 		bsr.w	DrawBlocks_TB				; draw a vertical line of blocks to the right of the screen
 
 ; locret_6952:
@@ -144,10 +145,10 @@ DrawBG_Top:
 
 		; Draw new tiles at the top
 		moveq	#-16,d4					; set X and Y positions to top left of screen
-		moveq	#-16,d5					; ''
+		moveq	#-(ExtraWidth+16),d5					; ''
 		bsr.w	Calc_VRAM_Pos				; get the plane position
 		moveq	#-16,d4					; set X and Y positions to top left of screen
-		moveq	#-16,d5					; ''
+		moveq	#-(ExtraWidth+16),d5					; ''
 		bsr.w	DrawBlocks_LR				; draw a horizontal line of blocks above the screen
 
 	; --- BG Bottom ---
@@ -159,10 +160,10 @@ DrawBG_Top:
 
 		; Draw new tiles at the bottom
 		move.w	#224,d4					; set X and Y positions to bottom left of screen
-		moveq	#-16,d5					; ''
+		moveq	#-(ExtraWidth+16),d5					; ''
 		bsr.w	Calc_VRAM_Pos				; get the plane position
 		move.w	#224,d4					; set X and Y positions to bottom left of screen
-		moveq	#-16,d5					; ''
+		moveq	#-(ExtraWidth+16),d5					; ''
 		bsr.w	DrawBlocks_LR				; draw a horizontal line of blocks below the screen
 
 	; --- BG Left (Top Section) ---
@@ -174,10 +175,10 @@ DrawBG_Top:
 
 		; Draw new tiles on the left
 		moveq	#-16,d4					; set X and Y positions to top left of screen
-		moveq	#-16,d5					; ''
+		moveq	#-(ExtraWidth+16),d5					; ''
 		bsr.w	Calc_VRAM_Pos				; get the plane position
 		moveq	#-16,d4					; set X and Y positions to top left of screen
-		moveq	#-16,d5					; ''
+		moveq	#-(ExtraWidth+16),d5					; ''
 		bsr.w	DrawBlocks_TB				; draw a vertical line of blocks to the left of the screen
 
 	; --- BG Right (Top Section) ---
@@ -189,10 +190,10 @@ DrawBG_Top:
 
 		; Draw new tiles on the right
 		moveq	#-16,d4					; set X and Y positions to top right of screen
-		move.w	#320,d5					; ''
+		move.w	#320+(((ExtraWidth))),d5					; ''
 		bsr.w	Calc_VRAM_Pos				; get the plane position
 		moveq	#-16,d4					; set X and Y positions to top right of screen
-		move.w	#320,d5					; ''
+		move.w	#320+(((ExtraWidth))),d5					; ''
 		bsr.w	DrawBlocks_TB				; draw a vertical line of blocks to the right of the screen
 
 	; locj_6D70:
@@ -202,10 +203,11 @@ DrawBG_Top:
 
 		; Draw entire row at the top
 		moveq	#-16,d4					; Y coordinate = 16px (size of block) above top
-		moveq	#0,d5					; clear X position (start at very left of screen)
+		moveq	#-(ExtraWidth),d5					; clear X position (start at very left of screen)
 		bsr.w	Calc_VRAM_Pos_2				; get the plane position (ignore d5 = X width)
 		moveq	#-16,d4					; set Y position to top of screen
-		moveq	#0,d5					; clear X position (start at very left of screen)
+
+		moveq	#-(ExtraWidth),d5					; clear X position (start at very left of screen)
 		moveq	#(512/16)-1,d6				; set number of blocks to draw horizontally (entire plane's width)
 		bsr.w	DrawBlocks_LR_3				; draw a horizontal line of blocks above the screen
 
@@ -216,10 +218,10 @@ DrawBG_Top:
 
 		; Draw entire row at the bottom
 		move.w	#224,d4					; y coordinate - bottom of screen
-		moveq	#0,d5					; clear X position (start at very left of screen)
+		moveq	#-(ExtraWidth+16),d5					; clear X position (start at very left of screen)
 		bsr.w	Calc_VRAM_Pos_2				; get the plane position (ignore d5 = X width)
 		move.w	#224,d4					; set Y position to bottom of screen
-		moveq	#0,d5					; clear X position (start at very left of screen)
+		moveq	#-(ExtraWidth+16),d5					; clear X position (start at very left of screen)
 		moveq	#(512/16)-1,d6				; set number of blocks to draw horizontally (entire plane's width)
 		bsr.w	DrawBlocks_LR_3				; draw a horizontal line of blocks below the screen
 
@@ -245,12 +247,13 @@ DrawBG_Bottom:
 		bclr	#0,(a2)					; clear flag for redraw left (REV01 uses bit 0 for redraw left flag)
 		beq.s	.checkRight				; branch if already clear
 
+ 
 		; Draw new tiles on the left
 		move.w	#224/2,d4				; draw the bottom half of the screen
-		moveq	#-16,d5					; x coordinate - left of screen
+		moveq	#-(ExtraWidth+16),d5					; x coordinate - left of screen
 		bsr.w	Calc_VRAM_Pos				; get the plane position
 		move.w	#224/2,d4				; draw the bottom half of the screen
-		moveq	#-16,d5					; x coordinate - left of screen
+		moveq	#-(ExtraWidth+16),d5					; x coordinate - left of screen
 		moveq	#3-1,d6					; draw three rows... could this be a repurposed version of the above unused code?
 		bsr.w	DrawBlocks_TB_2				; draw three blocks vertically to the left of the screen 
 
@@ -261,10 +264,10 @@ DrawBG_Bottom:
 
 		; Draw new tiles on the right
 		move.w	#224/2,d4				; draw the bottom half of the screen
-		move.w	#320,d5					; x coordinate - right of screen
+		move.w	#320+(((ExtraWidth))),d5					; x coordinate - right of screen
 		bsr.w	Calc_VRAM_Pos				; get the plane position
 		move.w	#224/2,d4				; draw the bottom half of the screen
-		move.w	#320,d5					; x coordinate - right of screen
+		move.w	#320+(((ExtraWidth))),d5					; x coordinate - right of screen
 		moveq	#3-1,d6					; draw three Blocks
 		bsr.w	DrawBlocks_TB_2				; draw three blocks vertically to the right of the screen 
 
@@ -306,7 +309,7 @@ Draw_SBZ:
 		lea	(DrawBG_XPosCopy_Ptrs).l,a3		; dc.w v_bg1_x_pos_copy, v_bg1_x_pos_copy, v_bg2_x_pos_copy, v_bg3_x_pos_copy
 		movea.w	(a3,d0.w),a3				; get pointer to bg block 1/2/3 x pos
 		beq.s	.bgXPos0				; branch if 0
-		moveq	#-16,d5					; x coordinate - left of screen
+		moveq	#-(ExtraWidth+16),d5					; x coordinate - left of screen
 		movem.l	d4-d5,-(sp)				; store X and Y positions
 		bsr.w	Calc_VRAM_Pos				; d0 = VDP command for bg nametable
 		movem.l	(sp)+,d4-d5				; restore X and Y positions
@@ -332,13 +335,13 @@ Draw_SBZ:
 ; locj_6E78:
 .more:
 		moveq	#-16,d4					; y coordinate - top of screen
-		moveq	#-16,d5					; x coordinate - left of screen
+		moveq	#-(ExtraWidth+16),d5					; x coordinate - left of screen
 		move.b	(a2),d0					; get remaining redraw flag bits
 		andi.b	#%10101000,d0				; read bits 7, 5 and 3 only ($A8)
 		beq.s	.doMore					; if none are set, branch
 		lsr.b	#1,d0					; shift into bits 6, 4 and 2 respectively
 		move.b	d0,(a2)					; set as new draw flag bits
-		move.w	#320,d5					; x coordinate - right of screen
+		move.w	#320+(((ExtraWidth))),d5					; x coordinate - right of screen
 
 	; locj_6E8C:
 	.doMore:
@@ -363,12 +366,12 @@ DrawBG_Block3:
 
 		; Draw new tiles on the left
 		move.w	#64,d4					; y coordinate - fourth line from top of screen
-		moveq	#-16,d5					; x coordinate - left of screen
+		moveq	#-(ExtraWidth+16),d5					; x coordinate - left of screen
 		bsr.w	Calc_VRAM_Pos				; get the plane position
 		move.w	#64,d4					; y coordinate - fourth line from top of screen
-		moveq	#-16,d5					; x coordinate - left of screen
+		moveq	#-(ExtraWidth+16),d5					; x coordinate - left of screen
 		moveq	#3-1,d6					; draw three blocks
-		bsr.w	DrawBlocks_TB_2				; draw three blocks vertically to the left of the screen 
+		bsr.w	DrawBlocks_TB_2				; draw three blocks vertically to the left of the screen
 
 ; locj_6ED0:
 .checkRight:
@@ -377,10 +380,10 @@ DrawBG_Block3:
 
 		; Draw new tiles on the right
 		move.w	#64,d4					; y coordinate - fourth line from top of screen
-		move.w	#320,d5					; x coordinate - right of screen
+		move.w	#320+(((ExtraWidth))),d5					; x coordinate - right of screen
 		bsr.w	Calc_VRAM_Pos				; get the plane position
 		move.w	#64,d4					; y coordinate - fourth line from top of screen
-		move.w	#320,d5					; x coordinate - right of screen
+		move.w	#320+(((ExtraWidth))),d5					; x coordinate - right of screen
 		moveq	#3-1,d6					; draw three blocks
 		bsr.w	DrawBlocks_TB_2				; draw three blocks vertically to the right of the screen 
 
@@ -427,7 +430,7 @@ Draw_MZ:
    lsl.l	#7,d3		; was lsl.w #7
 		movea.w	DrawBG_XPosCopy_Ptrs(pc,d0.w),a3	; use that value to retrieve relevant BG screen position data
 		beq.s	.bgXPos0				; branch if 0
-		moveq	#-16,d5					; x coordinate - left of screen
+		moveq	#-(ExtraWidth+16),d5					; x coordinate - left of screen
 		movem.l	d4-d5,-(sp)				; store X and Y positions
 		bsr.w	Calc_VRAM_Pos				; get the plane position
 		movem.l	(sp)+,d4-d5				; restore X and Y positions
@@ -453,13 +456,13 @@ Draw_MZ:
 ; locj_6FB4:
 .more:
 		moveq	#-16,d4					; y coordinate - top of screen
-		moveq	#-16,d5					; x coordinate - left of screen
+		moveq	#-(ExtraWidth+16),d5					; x coordinate - left of screen
 		move.b	(a2),d0					; get remaining redraw flag bits
 		andi.b	#%10101000,d0				; read bits 7, 5 and 3 only ($A8)
 		beq.s	.doMore					; if none are set, branch
 		lsr.b	#1,d0					; shift into bits 6, 4 and 2 respectively
 		move.b	d0,(a2)					; set as new draw flag bits
-		move.w	#320,d5					; x coordinate - right of screen
+		move.w	#320+((ExtraWidth)),d5					; x coordinate - right of screen
 
 	; locj_6FC8:
 	.doMore:
@@ -542,7 +545,11 @@ DrawBG_ColumnForBGIndex:
 
 ; DrawBlocks_X: DrawRow:
 DrawBlocks_LR:
-		moveq	#((320+16+16)/16)-1,d6			; prepare number of blocks (entire width of the screen + two extra columns)
+  if WidescreenType
+		moveq	#((320+(16*2)+(ExtraWidth*2))/16)-1,d6			; prepare number of blocks (entire width of the screen + two extra columns + widescreen support)
+  else
+		moveq	#((320+(16*2))/16)-1,d6			; prepare number of blocks (entire width of the screen + two extra columns + widescreen support)
+  endif
 
 ; DrawBlocks_X_Alt: DrawRow_Partial:
 DrawBlocks_LR_2:
@@ -913,11 +920,11 @@ DrawChunks:
 
 	.nextRow:
 		movem.l	d4-d6,-(sp)				; store X position and "strip counter" data
-		moveq	#0,d5					; clear X position (start at very left of screen)
+		moveq	#-(ExtraWidth),d5					; clear X position (start at very left of screen)
 		move.w	d4,d1					; store Y position in d1
 		bsr.w	Calc_VRAM_Pos				; get plane/VRAM address
 		move.w	d1,d4					; reload Y position back to d4
-		moveq	#0,d5					; reclear X position (start at very left of screen)
+		moveq	#-(ExtraWidth),d5					; clear X position (start at very left of screen)
 		moveq	#(512/16)-1,d6				; set number of blocks to draw horizontally (entire plane's width)
 		bsr.w	DrawBlocks_LR_2				; draw the horizontal strip
 		movem.l	(sp)+,d4-d6				; restore X position and "strip counter" data
@@ -1032,7 +1039,7 @@ DrawBG_RowForBGIndex:
 		move.b	(a0,d0.w),d0				; retrieve offset value from input BG_ScrollBlockMap (0/2/4/6)
 		movea.w	DrawBG_XPos_Ptrs(pc,d0.w),a3		; use that value to retrieve relevant BG screen position data
 		beq.s	.bgXPos0				; branch if 0
-		moveq	#-16,d5					; x coordinate - left of screen
+		moveq	#-(ExtraWidth+16),d5					; x coordinate - left of screen
 		movem.l	d4-d5,-(sp)				; store X and Y positions
 		bsr.w	Calc_VRAM_Pos				; get the plane position
 		movem.l	(sp)+,d4-d5				; restore X and Y positions
